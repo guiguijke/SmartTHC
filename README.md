@@ -29,13 +29,13 @@ Smart THC is licensed under the [GNU General Public License v3 (GPL v3)](#licens
 
 To build and run Smart THC, you'll need:
 
-- **Arduino Board**: Arduino Uno R4 Minima (or compatible boards like Uno, Nano, or Mega).
-- **LCD Display**: 16x2 LCD with I2C interface (e.g., with PCF8574 backpack, typically at I2C address 0x27 or 0x3F).
+- **Arduino Board**: Arduino Uno R4 Minima (or wifi).
+- **LCD Display**: 16x2 LCD with I2C interface.
 - **Stepper Motor and Driver**: 4-wire stepper motor with a driver (e.g., ULN2003 or A4988) for Z-axis movement.
 - **Rotary Encoder**: For menu navigation and parameter adjustment (with CLK, DT, and SW pins).
 - **Plasma Arc Sensor**: Voltage divider or ADC input to measure plasma arc voltage (connected to A0).
 - **CNC Stepper Signals**: X/Y-axis step signals (connected to interrupt pins for speed calculation).
-- **Push Buttons and Switches**: For enabling/disabling THC and detecting plasma arc status.
+- **1 Switch**: For enabling/disabling THC and detecting plasma arc status.
 - **Jumper Wires and Breadboard**: For prototyping and connections.
 
 ## Software Requirements
@@ -92,28 +92,7 @@ You'll also need:
 
 ## Usage
 
-After uploading the code and connecting the hardware:
-
-1. Power on your Arduino.
-2. The LCD will display the main screen, showing the real-time arc voltage (TRC), target voltage (TGT), torch speed, and THC status (using custom icons).
-3. Use the rotary encoder to navigate through eight configuration screens:
-   - Main screen: Displays arc voltage, target voltage, and torch speed.
-   - Screen 1: Adjust target voltage (50–200V).
-   - Screen 2: Set voltage correction factor.
-   - Screen 3: Configure cutting speed (mm/min).
-   - Screen 4: Set speed threshold ratio for THC activation.
-   - Screens 5–7: Tune PID coefficients (Kp, Ki, Kd).
-4. Press the encoder button to cycle through screens.
-5. The THC activates when the plasma arc is stable, the enable pin is low, and the torch speed exceeds the threshold, adjusting the Z-axis to maintain the target voltage.
-6. Settings are saved to EEPROM for persistence across power cycles.
-
-To customize:
-- Modify PID parameters in `src/main.cpp` for your plasma cutter’s characteristics.
-- Adjust the stepper motor’s speed and acceleration in the `AccelStepper` configuration.
-- Update the anti-dive thresholds and durations for specific cutting conditions.
-- Check the serial monitor (115200 baud) for detailed logs, including torch speed, arc voltage, and THC status.
-
-A comprehensive premium documentation package will provide advanced tuning tips and integration guides (details coming soon!).
+Usage will be shared in a paid documentation, this will encourage me to continue developpment!
 
 ## Upcoming Features
 
@@ -131,23 +110,10 @@ Smart THC is licensed under the [GNU General Public License v3 (GPL v3)](LICENSE
 
 See the [LICENSE](LICENSE) file and library documentation for details.
 
-## Contributing
-
-We welcome contributions to Smart THC! To contribute:
-
-1. Fork the repository.
-2. Create a branch (`git checkout -b feature/your-feature`).
-3. Commit your changes (`git commit -m "Add your feature"`).
-4. Push to your branch (`git push origin feature/your-feature`).
-5. Open a Pull Request.
-
-Please adhere to the [Code of Conduct](CODE_OF_CONDUCT.md) and ensure your code is well-documented.
-
 ## Premium Documentation
 
 While the code is open source, a premium documentation package is in development, including:
 - Step-by-step hardware setup guides.
-- Advanced PID tuning for plasma cutting.
 - Customizing anti-dive and speed thresholds.
 - Integration with various CNC plasma systems.
 
@@ -155,7 +121,7 @@ Stay tuned for availability and pricing details!
 
 ## Contact
 
-Questions or feedback? Open an issue on [GitHub Issues](https://github.com/your-username/Smart-THC/issues) or email me at [your-email@example.com](mailto:your-email@example.com).
+Questions or feedback? Open an issue on [GitHub Issues](https://github.com/your-username/Smart-THC/issues) or join my Discord server to talk to me directly.
 
 Happy cutting with Smart THC!
 
