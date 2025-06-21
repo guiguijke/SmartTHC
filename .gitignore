@@ -41,6 +41,6 @@
 .clang_complete
 .gcc-flags.json
 .pio
-
+.vscode
 fichier.log
 lastworkingfile.cpp
