@@ -3,6 +3,8 @@
 #include <AccelStepper.h>
 #include <PID_v1.h>
 
+#TEST
+
 // Define pins (adjusted for UNO R4 Minima)
 #define PLASMA_PIN A0    // Analog pin for plasma signal
 #define ENABLE_PIN 10
