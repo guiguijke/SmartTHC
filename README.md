@@ -121,7 +121,7 @@ Stay tuned for availability and pricing details!
 
 ## Contact
 
-Questions or feedback? Open an issue on [GitHub Issues](https://github.com/your-username/Smart-THC/issues) or join my [Discord]([https://code.visualstudio.com/](https://discord.gg/Z9JJdjPDb4) server to talk to me directly.
+Questions or feedback? Open an issue on [GitHub Issues](https://github.com/your-username/Smart-THC/issues) or join my [Discord](https://discord.gg/Z9JJdjPDb4) server to talk to me directly.
 
 Happy cutting with Smart THC!
 
