@@ -1,5 +1,46 @@
-.pio
-.vscode
+# Created by https://www.toptal.com/developers/gitignore/api/platformio,c++
+# Edit at https://www.toptal.com/developers/gitignore?templates=platformio,c++
+
+### C++ ###
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
 *.o
-*.elf
-*.bin
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+### PlatformIO ###
+.pioenvs
+.piolibdeps
+.clang_complete
+.gcc-flags.json
+.pio
+
+fichier.log
+lastworkingfile.cpp
