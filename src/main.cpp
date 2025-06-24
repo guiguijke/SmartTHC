@@ -145,6 +145,9 @@ int N_fast = N_FAST_MIN;
 int N_slow = N_SLOW_MIN;
 bool arrays_initialized = false; // Indicateur d'initialisation des tableaux
 
+// Variable globale pour thc_etat
+bool thc_etat = false; // État de la vitesse pour le THC
+
 // Function declarations
 void initializeEEPROM();
 void calculateSpeed();
@@ -367,23 +370,31 @@ void loop() {
 
   if (currentTime - lastLogTime >= LOG_INTERVAL) {
     bool plasma_pin_low = (digitalRead(PLASMA_PIN) == LOW);
-    bool thc_off = (digitalRead(THC_OFF_PIN) == LOW);
-    
+    bool thc_off = (digitalRead(THC_OFF_PIN) == HIGH);
+    bool enable_pin_low = (digitalRead(ENABLE_PIN) == LOW);
+    bool arc_detecte = (tension_fast > seuil_arc);
+
     if (plasma_pin_low) {
-      Serial.print("Vitesse torche: ");
+      Serial.print("TGT / Vitesse torche: ");
+      Serial.print(cut_speed);
+      Serial.print(" / ");
       Serial.print(vitesse_torche_filtre);
+      Serial.print(" mm/min | Threshold speed: ");
+      Serial.print(threshold_speed);
       Serial.println(" mm/min");
       Serial.print("PLASMA_PIN: LOW | ENABLE_PIN: ");
-      Serial.print(digitalRead(ENABLE_PIN) == LOW ? "LOW" : "HIGH");
+      Serial.print(enable_pin_low ? "LOW" : "HIGH");
       Serial.print(" | Stabilisation: ");
       Serial.print(plasma_stabilise ? "OK" : "En attente");
       Serial.print(" | Arc détecté: ");
-      Serial.print(tension_fast > seuil_arc ? "Oui" : "Non");
+      Serial.print(arc_detecte ? "Oui" : "Non");
       Serial.print(" | THC actif: ");
       Serial.print(thc_actif ? "Oui" : "Non");
       Serial.print(" | THC_OFF: ");
-      Serial.println(thc_off ? "OFF" : "ON");
-      Serial.print(" V | Tension fast: ");
+      Serial.print(thc_off ? "OFF" : "ON");
+      Serial.print(" | THC état (vitesse): ");
+      Serial.println(thc_etat ? "OK" : "Insuffisant");
+      Serial.print("V | Tension fast: ");
       Serial.print(tension_fast);
       Serial.print(" V | Tension slow: ");
       Serial.print(tension_slow);
@@ -393,8 +404,22 @@ void loop() {
       Serial.print(Setpoint);
       Serial.print(" V | PID Output: ");
       Serial.println(Output);
+      
+      // Log explicite si THC inactif
+      if (!thc_actif && !thc_off) {
+        Serial.print("Raison THC inactif: ");
+        if (!enable_pin_low) Serial.println("ENABLE_PIN HIGH");
+        else if (!plasma_pin_low) Serial.println("PLASMA_PIN HIGH");
+        else if (!plasma_stabilise) Serial.println("Stabilisation non atteinte");
+        else if (!arc_detecte) Serial.println("Arc non détecté (tension faible)");
+        else if (!thc_etat) Serial.println("Vitesse torche < seuil");
+        else if (anti_dive_active) Serial.println("Anti-dive actif");
+        else Serial.println("Condition inconnue");
+      }
     } else {
-      Serial.print(" V | Tension fast: ");
+      Serial.print("Cut Speed setup: ");
+      Serial.print(cut_speed);
+      Serial.print(" mm/min | Tension fast: ");
       Serial.print(tension_fast);
       Serial.print(" V | PLASMA_PIN: HIGH | THC_OFF: ");
       Serial.println(thc_off ? "OFF" : "ON");
@@ -542,7 +567,7 @@ void managePlasmaAndTHC() {
   bool plasma_pin_low = (digitalRead(PLASMA_PIN) == LOW);
   bool enable_pin_low = (digitalRead(ENABLE_PIN) == LOW);
   bool arc_detecte = (tension_fast > seuil_arc);
-  bool thc_off = (digitalRead(THC_OFF_PIN) == LOW);
+  bool thc_off = (digitalRead(THC_OFF_PIN) == HIGH);
 
   if (plasma_pin_low) {
     digitalWrite(SWITCH1, LOW);
@@ -560,14 +585,13 @@ void managePlasmaAndTHC() {
     plasma_stabilise = false;
   }
 
-  static bool thc_etat = false;
   if (!thc_etat && vitesse_torche_filtre >= threshold_speed) {
     thc_etat = true;
   } else if (thc_etat && vitesse_torche_filtre < threshold_speed) {
     thc_etat = false;
   }
 
-  // THC is disabled if THC_OFF_PIN is LOW
+  // THC is disabled if THC_OFF_PIN is HIGH
   if (thc_off) {
     thc_actif = false;
   } else {
@@ -651,21 +675,18 @@ void updateLCD() {
   }
 
   if (currentScreen == 0) {
-    // Affichage de la tension réelle
     if (tension_fast != lastTensionReelle) {
       lcd.setCursor(4, 0);
       lcd.print(tension_fast, 1);
       lastTensionReelle = tension_fast;
     }
 
-    // Affichage de la tension cible
     if (Setpoint != lastSetpoint) {
       lcd.setCursor(4, 1);
       lcd.print(Setpoint, 1);
       lastSetpoint = Setpoint;
     }
 
-    // Affichage de la vitesse
     int vitesse_affichee = (int)(vitesse_torche_filtre);
     if (vitesse_affichee > 9999) vitesse_affichee = 9999;
     if (vitesse_torche_filtre < 0.1) {
@@ -680,16 +701,13 @@ void updateLCD() {
       lastVitesse = vitesse_affichee;
     }
 
-    // Lecture des états des pins
     bool enable_low = digitalRead(ENABLE_PIN) == LOW;
     bool plasma_low = digitalRead(PLASMA_PIN) == LOW;
-    bool thc_off = digitalRead(THC_OFF_PIN) == LOW;
+    bool thc_off = digitalRead(THC_OFF_PIN) == HIGH;
 
-    // Mise à jour des indicateurs sur (11,1) à (14,1) seulement si changement
     if (enable_low != lastEnableLow || plasma_low != lastPlasmaLow || 
         thc_actif != lastThcActif || thc_off != lastThcOff || Output != lastOutput) {
       
-      // Position (11,1) : Statut ENABLE_PIN
       lcd.setCursor(11, 1);
       if (enable_low) {
         lcd.print("S"); // Standby
@@ -697,7 +715,6 @@ void updateLCD() {
         lcd.print("O"); // Off
       }
 
-      // Position (12,1) : Direction du mouvement
       lcd.setCursor(12, 1);
       if (thc_actif) {
         if (Output > 10) {
@@ -711,7 +728,6 @@ void updateLCD() {
         lcd.print(" "); // Espace si THC inactif
       }
 
-      // Position (13,1) : État du THC
       lcd.setCursor(13, 1);
       if (thc_off) {
         lcd.print(" "); // THC désactivé par THC_OFF_PIN
@@ -721,7 +737,6 @@ void updateLCD() {
         lcd.print(" "); // THC inactif
       }
 
-      // Position (14,1) : État du plasma
       lcd.setCursor(14, 1);
       if (plasma_low) {
         lcd.write(1); // plasmaChar
@@ -729,7 +744,6 @@ void updateLCD() {
         lcd.print(" "); // Pas d'arc
       }
 
-      // Mise à jour des dernières valeurs
       lastEnableLow = enable_low;
       lastPlasmaLow = plasma_low;
       lastThcActif = thc_actif;
@@ -737,7 +751,6 @@ void updateLCD() {
       lastOutput = Output;
     }
   } else {
-    // Gestion des autres écrans (inchangée)
     switch (currentScreen) {
       case 1:
         lcd.setCursor(7, 0);
