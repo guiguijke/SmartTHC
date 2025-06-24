@@ -651,18 +651,21 @@ void updateLCD() {
   }
 
   if (currentScreen == 0) {
+    // Affichage de la tension réelle
     if (tension_fast != lastTensionReelle) {
       lcd.setCursor(4, 0);
       lcd.print(tension_fast, 1);
       lastTensionReelle = tension_fast;
     }
 
+    // Affichage de la tension cible
     if (Setpoint != lastSetpoint) {
       lcd.setCursor(4, 1);
       lcd.print(Setpoint, 1);
       lastSetpoint = Setpoint;
     }
 
+    // Affichage de la vitesse
     int vitesse_affichee = (int)(vitesse_torche_filtre);
     if (vitesse_affichee > 9999) vitesse_affichee = 9999;
     if (vitesse_torche_filtre < 0.1) {
@@ -677,53 +680,64 @@ void updateLCD() {
       lastVitesse = vitesse_affichee;
     }
 
+    // Lecture des états des pins
     bool enable_low = digitalRead(ENABLE_PIN) == LOW;
     bool plasma_low = digitalRead(PLASMA_PIN) == LOW;
     bool thc_off = digitalRead(THC_OFF_PIN) == LOW;
-    if (thc_actif != lastThcActif || enable_low != lastEnableLow || plasma_low != lastPlasmaLow || thc_off != lastThcOff) {
+
+    // Mise à jour des indicateurs sur (11,1) à (14,1) seulement si changement
+    if (enable_low != lastEnableLow || plasma_low != lastPlasmaLow || 
+        thc_actif != lastThcActif || thc_off != lastThcOff || Output != lastOutput) {
+      
+      // Position (11,1) : Statut ENABLE_PIN
       lcd.setCursor(11, 1);
-      if (thc_off) {
-        lcd.print(" "); // THC_OFF is LOW, display blank
-      } else if (thc_actif) {
-        lcd.write(2);
-      } else if (enable_low && plasma_low) {
-        lcd.write(6);
-      } else if (enable_low) {
-        lcd.write(0);
-      } else if (plasma_low) {
-        lcd.write(1);
+      if (enable_low) {
+        lcd.print("S"); // Standby
       } else {
-        lcd.print(" ");
+        lcd.print("O"); // Off
       }
-      lastThcActif = thc_actif;
+
+      // Position (12,1) : Direction du mouvement
+      lcd.setCursor(12, 1);
+      if (thc_actif) {
+        if (Output > 10) {
+          lcd.write(3); // arrowUp
+        } else if (Output < -10) {
+          lcd.write(4); // arrowDown
+        } else {
+          lcd.write(5); // stableChar
+        }
+      } else {
+        lcd.print(" "); // Espace si THC inactif
+      }
+
+      // Position (13,1) : État du THC
+      lcd.setCursor(13, 1);
+      if (thc_off) {
+        lcd.print(" "); // THC désactivé par THC_OFF_PIN
+      } else if (thc_actif) {
+        lcd.write(2); // thcActifChar
+      } else {
+        lcd.print(" "); // THC inactif
+      }
+
+      // Position (14,1) : État du plasma
+      lcd.setCursor(14, 1);
+      if (plasma_low) {
+        lcd.write(1); // plasmaChar
+      } else {
+        lcd.print(" "); // Pas d'arc
+      }
+
+      // Mise à jour des dernières valeurs
       lastEnableLow = enable_low;
       lastPlasmaLow = plasma_low;
+      lastThcActif = thc_actif;
       lastThcOff = thc_off;
+      lastOutput = Output;
     }
-
-    if (thc_actif) {
-      lcd.setCursor(13, 1);
-      if (Output > 10) {
-        lcd.write(3);
-      } else if (Output < -10) {
-        lcd.write(4);
-      } else {
-        lcd.write(5);
-      }
-      int intensity = map(abs(Output), 0, 1000, 0, 2);
-      lcd.setCursor(14, 1);
-      for (int i = 0; i < intensity; i++) {
-        lcd.print("|");
-      }
-      for (int i = intensity; i < 2; i++) {
-        lcd.print(" ");
-      }
-    } else if (lastOutput != 0) {
-      lcd.setCursor(13, 1);
-      lcd.print("   ");
-    }
-    lastOutput = Output;
   } else {
+    // Gestion des autres écrans (inchangée)
     switch (currentScreen) {
       case 1:
         lcd.setCursor(7, 0);
