@@ -391,7 +391,7 @@ void loop() {
       Serial.print(" | THC actif: ");
       Serial.print(thc_actif ? "Oui" : "Non");
       Serial.print(" | THC_SIG: ");
-      Serial.print(thc_off ? "OFF" : "ON");
+      Serial.print(thc_off ? "ACTIVE" : "INACTIVE");
       Serial.print(" | THC état (vitesse): ");
       Serial.println(thc_etat ? "OK" : "Insuffisant");
       Serial.print("V | Tension fast: ");
@@ -422,7 +422,7 @@ void loop() {
       Serial.print(" mm/min | Tension fast: ");
       Serial.print(tension_fast);
       Serial.print(" V | PLASMA_PIN: HIGH | THC_SIG: ");
-      Serial.println(thc_off ? "OFF" : "ON");
+      Serial.print(thc_off ? "ACTIVE" : "INACTIVE");
     }
     
     lastLogTime = currentTime;
