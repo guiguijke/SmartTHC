@@ -422,7 +422,7 @@ void loop() {
       Serial.print(" mm/min | Tension fast: ");
       Serial.print(tension_fast);
       Serial.print(" V | PLASMA_PIN: HIGH | THC_SIG: ");
-      Serial.print(thc_off ? "ACTIVE" : "INACTIVE");
+      Serial.println(thc_off ? "ACTIVE" : "INACTIVE");
     }
     
     lastLogTime = currentTime;
@@ -567,7 +567,7 @@ void managePlasmaAndTHC() {
   bool plasma_pin_low = (digitalRead(PLASMA_PIN) == LOW);
   bool enable_pin_low = (digitalRead(ENABLE_PIN) == LOW);
   bool arc_detecte = (tension_fast > seuil_arc);
-  bool thc_off = (digitalRead(THC_OFF_PIN) == HIGH);
+  bool thc_off = (digitalRead(THC_OFF_PIN) == LOW);
 
   if (plasma_pin_low) {
     digitalWrite(SWITCH1, LOW);
@@ -703,7 +703,7 @@ void updateLCD() {
 
     bool enable_low = digitalRead(ENABLE_PIN) == LOW;
     bool plasma_low = digitalRead(PLASMA_PIN) == LOW;
-    bool thc_off = digitalRead(THC_OFF_PIN) == HIGH;
+    bool thc_off = (digitalRead(THC_OFF_PIN) == LOW);
 
     if (enable_low != lastEnableLow || plasma_low != lastPlasmaLow || 
         thc_actif != lastThcActif || thc_off != lastThcOff || Output != lastOutput) {
@@ -729,12 +729,12 @@ void updateLCD() {
       }
 
       lcd.setCursor(13, 1);
-      if (thc_off) {
-        lcd.print(" "); // THC désactivé par THC_OFF_PIN
-      } else if (thc_actif) {
+      if (thc_off && !thc_actif ) {
+        lcd.print("o"); // THC désactivé par THC_OFF_PIN
+      } else if (thc_off && thc_actif) {
         lcd.write(2); // thcActifChar
       } else {
-        lcd.print(" "); // THC inactif
+        lcd.print("-"); // THC inactif
       }
 
       lcd.setCursor(14, 1);
