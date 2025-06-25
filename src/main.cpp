@@ -35,7 +35,7 @@ const float DEFAULT_CORRECTION_FACTOR = 1.0;
 const float DEFAULT_CUT_SPEED = 1700.0;
 const float DEFAULT_THRESHOLD_RATIO = 0.7;
 const float DEFAULT_KP = 350.0;
-const float DEFAULT_KI = 0.1;
+const float DEFAULT_KI = 0.0;
 const float DEFAULT_KD = 20.0;
 
 // Initialize objects
@@ -94,7 +94,7 @@ const float seuil_arc = 10.0;
 const unsigned long delai_stabilisation = 500;
 unsigned long temps_plasma_active = 0;
 bool plasma_stabilise = false;
-const unsigned long LOG_INTERVAL = 50;
+const unsigned long LOG_INTERVAL = 150;
 unsigned long lastLogTime = 0;
 bool thc_actif = false;
 
