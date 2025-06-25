@@ -390,7 +390,7 @@ void loop() {
       Serial.print(arc_detecte ? "Oui" : "Non");
       Serial.print(" | THC actif: ");
       Serial.print(thc_actif ? "Oui" : "Non");
-      Serial.print(" | THC_OFF: ");
+      Serial.print(" | THC_SIG: ");
       Serial.print(thc_off ? "OFF" : "ON");
       Serial.print(" | THC état (vitesse): ");
       Serial.println(thc_etat ? "OK" : "Insuffisant");
@@ -421,7 +421,7 @@ void loop() {
       Serial.print(cut_speed);
       Serial.print(" mm/min | Tension fast: ");
       Serial.print(tension_fast);
-      Serial.print(" V | PLASMA_PIN: HIGH | THC_OFF: ");
+      Serial.print(" V | PLASMA_PIN: HIGH | THC_SIG: ");
       Serial.println(thc_off ? "OFF" : "ON");
     }
     
