@@ -34,10 +34,10 @@ const float DEFAULT_SETPOINT = 100.0;
 const float DEFAULT_CORRECTION_FACTOR = 1.0;
 const float DEFAULT_CUT_SPEED = 1700.0;
 const float DEFAULT_THRESHOLD_RATIO = 0.7;
-const float DEFAULT_KP = 20.0;
-const float DEFAULT_KI = 0.5;
-const float DEFAULT_KD = 1.0;
-
+const float DEFAULT_KP = 10.0;
+const float DEFAULT_KI = 0.10;
+const float DEFAULT_KD = 0.20;
+byte initializedFlag=0xAA;
 // Initialize objects
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
@@ -198,7 +198,7 @@ void setup() {
   }
 
   stepper.setMaxSpeed(5000);  // 5000 pas/s = 100 mm/s avec 50 pas/mm
-  stepper.setAcceleration(2500);  // 1200 mm/s²
+  stepper.setAcceleration(5000);  
   myPID.begin(&Input, &Output, &Setpoint, DEFAULT_KP, DEFAULT_KI, DEFAULT_KD);
   myPID.setOutputLimits(-2500, 2500);  // ±2500 pas/s = ±50 mm/s
   Ki = DEFAULT_KI;
@@ -218,6 +218,8 @@ void setup() {
   EEPROM.get(EEPROM_KI_ADDR, Ki);
   EEPROM.get(EEPROM_KD_ADDR, Kd);
 
+  
+
   // Validate loaded values to prevent garbage data or NaN
   if (isnan(Setpoint) || Setpoint < 50 || Setpoint > 200) Setpoint = DEFAULT_SETPOINT;
   if (isnan(tension_correction_factor) || tension_correction_factor < 0.5 || tension_correction_factor > 2.0) tension_correction_factor = DEFAULT_CORRECTION_FACTOR;
@@ -235,7 +237,7 @@ void setup() {
 
 void initializeEEPROM() {
   // Check if EEPROM has been initialized
-  byte initializedFlag;
+  
   EEPROM.get(EEPROM_INITIALIZED_FLAG, initializedFlag);
   
   if (initializedFlag != 0xAA) {
@@ -254,6 +256,21 @@ void initializeEEPROM() {
     
     Serial.println("EEPROM initialized with default values");
   }
+// Load parameters from EEPROM
+  EEPROM.get(EEPROM_SETPOINT_ADDR, Setpoint);
+  Serial.println("Loaded Setpoint: " + String(Setpoint, 2));
+  EEPROM.get(EEPROM_CORRECTION_FACTOR_ADDR, tension_correction_factor);
+  Serial.println("Loaded tension_correction_factor: " + String(tension_correction_factor, 2));
+  EEPROM.get(EEPROM_CUT_SPEED_ADDR, cut_speed);
+  Serial.println("Loaded cut_speed: " + String(cut_speed, 2));
+  EEPROM.get(EEPROM_THRESHOLD_RATIO_ADDR, threshold_ratio);
+  Serial.println("Loaded threshold_ratio: " + String(threshold_ratio, 2));
+  EEPROM.get(EEPROM_KP_ADDR, Kp);
+  Serial.println("Loaded Kp: " + String(Kp, 2));
+  EEPROM.get(EEPROM_KI_ADDR, Ki);
+  Serial.println("Loaded Ki: " + String(Ki, 2));
+  EEPROM.get(EEPROM_KD_ADDR, Kd);
+  Serial.println("Loaded Kd: " + String(Kd, 2));
 }
 
 void loop() {
@@ -274,7 +291,22 @@ void loop() {
     if (Serial.available() > 0) {
         String command = Serial.readStringUntil('\n');
         if (command == "RESET_EEPROM") {
-            initializeEEPROM(); // Forcer la réinitialisation
+            EEPROM.put(EEPROM_SETPOINT_ADDR, DEFAULT_SETPOINT);
+            EEPROM.put(EEPROM_CORRECTION_FACTOR_ADDR, DEFAULT_CORRECTION_FACTOR);
+            EEPROM.put(EEPROM_CUT_SPEED_ADDR, DEFAULT_CUT_SPEED);
+            EEPROM.put(EEPROM_THRESHOLD_RATIO_ADDR, DEFAULT_THRESHOLD_RATIO);
+            EEPROM.put(EEPROM_KP_ADDR, DEFAULT_KP);
+            EEPROM.put(EEPROM_KI_ADDR, DEFAULT_KI);
+            EEPROM.put(EEPROM_KD_ADDR, DEFAULT_KD);
+              // Load parameters from EEPROM
+            EEPROM.get(EEPROM_SETPOINT_ADDR, Setpoint);
+            EEPROM.get(EEPROM_CORRECTION_FACTOR_ADDR, tension_correction_factor);
+            EEPROM.get(EEPROM_CUT_SPEED_ADDR, cut_speed);
+            EEPROM.get(EEPROM_THRESHOLD_RATIO_ADDR, threshold_ratio);
+            EEPROM.get(EEPROM_KP_ADDR, Kp);
+            EEPROM.get(EEPROM_KI_ADDR, Ki);
+            EEPROM.get(EEPROM_KD_ADDR, Kd);
+            myPID.setCoefficients(Kp, Ki, Kd);
             Serial.println("EEPROM réinitialisée via commande série");
         }
     }
@@ -429,7 +461,10 @@ void loop() {
       Serial.print(" mm/min | Tension fast: ");
       Serial.print(tension_fast);
       Serial.print(" V | PLASMA_PIN: HIGH | THC_SIG: ");
-      Serial.println(thc_off ? "ACTIVE" : "INACTIVE");
+      Serial.print(thc_off ? "ACTIVE" : "INACTIVE");
+      Serial.print("p: " + String(Kp, 2));
+      Serial.print(" i: " + String(Ki, 2));
+      Serial.println(" d: " + String(Kd, 2));
     }
     
     lastLogTime = currentTime;
@@ -461,7 +496,7 @@ void loop() {
     loopCount = 0;
     lastLoopLogTime = currentTime;
   }
-  stepper.runSpeed();
+
 }
 
 void calculateSpeed() {
@@ -613,13 +648,12 @@ void managePlasmaAndTHC() {
   myPID.compute();
   if (thc_actif) {
     double error = Setpoint - Input;
-    if (abs(error) > 0.5) {
+    if (abs(error) > 1) {
       stepper.setSpeed(Output);
       stepper.runSpeed();
     } else {
       Output = 0.0;
       stepper.setSpeed(Output);
-      stepper.runSpeed();
     }
   } else {
     stepper.setSpeed(0);
