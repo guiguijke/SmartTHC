@@ -30,20 +30,21 @@
 #define EEPROM_INITIALIZED_FLAG 28 // Address for initialization flag
 
 // Default parameter values
-const float DEFAULT_SETPOINT = 100.0;
+// Default parameter values
+const float DEFAULT_SETPOINT = 120.0; // Ajusté à votre cible
 const float DEFAULT_CORRECTION_FACTOR = 1.0;
-const float DEFAULT_CUT_SPEED = 1700.0;
-const float DEFAULT_THRESHOLD_RATIO = 0.7;
-const float DEFAULT_KP = 10.0;
-const float DEFAULT_KI = 0.10;
-const float DEFAULT_KD = 0.20;
+const float DEFAULT_CUT_SPEED = 1300.0; // Ajusté à vos logs
+const float DEFAULT_THRESHOLD_RATIO = 0.8; // Ajusté pour 1040 mm/min
+const float DEFAULT_KP = 10.0; // Réduit pour moins d'oscillations
+const float DEFAULT_KI = 0.2;  // Pour correction statique
+const float DEFAULT_KD = 0.02;  // Réduit pour moins de bruit
 byte initializedFlag=0xAA;
 // Initialize objects
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
 
 // Speed filtering variables
-const int taille_filtre_vitesse = 2;
+const int taille_filtre_vitesse = 4;
 float lectures_vitesse[taille_filtre_vitesse];
 int index_lecture_vitesse = 0;
 float somme_lectures_vitesse = 0.0;
@@ -131,8 +132,8 @@ const unsigned long ANTI_DIVE_DURATION_MIN = 50; // Durée min (ms) à haute vit
 const unsigned long ANTI_DIVE_DURATION_MAX = 300; // Durée max (ms) à basse vitesse
 
 // Variables globales pour les moyennes glissantes
-const int N_FAST_MIN = 15;    // Min échantillons pour tension rapide
-const int N_FAST_MAX = 40;   // Max échantillons pour tension rapide
+const int N_FAST_MIN = 5;    // Min échantillons pour tension rapide
+const int N_FAST_MAX = 20;   // Max échantillons pour tension rapide
 const int N_SLOW_MIN = 10;   // Min échantillons pour tension lente
 const int N_SLOW_MAX = 50;   // Max échantillons pour tension lente
 float tension_samples_fast[50]; // Tableau pour tension rapide (taille max)
@@ -225,11 +226,11 @@ void setup() {
   if (isnan(tension_correction_factor) || tension_correction_factor < 0.5 || tension_correction_factor > 2.0) tension_correction_factor = DEFAULT_CORRECTION_FACTOR;
   if (isnan(cut_speed) || cut_speed < 0 || cut_speed > 10000) cut_speed = DEFAULT_CUT_SPEED;
   if (isnan(threshold_ratio) || threshold_ratio < 0 || threshold_ratio > 1) threshold_ratio = DEFAULT_THRESHOLD_RATIO;
-  if (isnan(Kp) || Kp < 0 || Kp > 1500) Kp = DEFAULT_KP;
-  if (isnan(Ki) || Ki < 0 || Ki > 1) Ki = DEFAULT_KI;
-  if (isnan(Kd) || Kd < 0 || Kd > 100) Kd = DEFAULT_KD;
+  if (isnan(Kp) || Kp < 0.0 || Kp > 1500) Kp = DEFAULT_KP;
+  if (isnan(Ki) || Ki < 0.0 || Ki > 1) Ki = DEFAULT_KI;
+  if (isnan(Kd) || Kd < 0.0 || Kd > 100) Kd = DEFAULT_KD;
 
-  myPID.setCoefficients(Kp, Ki, Kd);
+  //myPID.setCoefficients(Kp, Ki, Kd);
   threshold_speed = cut_speed * threshold_ratio;
 
   analogReadResolution(14); // ADC à 14 bits
@@ -306,7 +307,7 @@ void loop() {
             EEPROM.get(EEPROM_KP_ADDR, Kp);
             EEPROM.get(EEPROM_KI_ADDR, Ki);
             EEPROM.get(EEPROM_KD_ADDR, Kd);
-            myPID.setCoefficients(Kp, Ki, Kd);
+            //myPID.setCoefficients(Kp, Ki, Kd);
             Serial.println("EEPROM réinitialisée via commande série");
         }
     }
@@ -384,7 +385,7 @@ void loop() {
       myPID.setCoefficients(Kp, Ki, Kd);
       break;
     case 6: // PID Ki
-      Ki += delta * 0.1;
+      Ki += delta * 0.01;
       if (Ki < 0) Ki = 0;
       if (Ki != lastKi) {
         EEPROM.put(EEPROM_KI_ADDR, Ki);
@@ -393,7 +394,7 @@ void loop() {
       myPID.setCoefficients(Kp, Ki, Kd);
       break;
     case 7: // PID Kd
-      Kd += delta *1.0;
+      Kd += delta *0.01;
       if (Kd < 0) Kd = 0;
       if (Kd != lastKd) {
         EEPROM.put(EEPROM_KD_ADDR, Kd);
@@ -580,7 +581,7 @@ void readAndFilterTension() {
 
   Input = tension_fast;
 
-  const float SEUIL_CHUTE = 5.0;  // Volts
+  const float SEUIL_CHUTE = 2.0;  // Volts
   static bool last_anti_dive_state = false;
   if (tension_fast > tension_slow + SEUIL_CHUTE && !anti_dive_active && digitalRead(PLASMA_PIN) == LOW) {
     anti_dive_active = true;
@@ -616,7 +617,7 @@ void managePlasmaAndTHC() {
   bool enable_pin_low = (digitalRead(ENABLE_PIN) == LOW);
   bool arc_detecte = (tension_fast > seuil_arc);
   bool thc_off = (digitalRead(THC_OFF_PIN) == LOW);
-
+  unsigned long currentTime = millis();
   if (plasma_pin_low) {
     digitalWrite(SWITCH1, LOW);
     digitalWrite(SWITCH2, LOW);
@@ -646,16 +647,30 @@ void managePlasmaAndTHC() {
   }
 
   myPID.compute();
+  static unsigned long lastPidTime = 0;
+  static double smoothedOutput = 0.0;
+  const float alpha = 0.05; // Facteur de lissage
+  if (currentTime - lastPidTime >= 333) { // 3 kHz = 0,333 ms
+    myPID.compute();
+    lastPidTime = currentTime;
+  }
+
   if (thc_actif) {
     double error = Setpoint - Input;
-    if (abs(error) > 1) {
-      stepper.setSpeed(Output);
+    if (abs(error) > 2.5) { // Zone morte de ±2,5 V
+      smoothedOutput = alpha * Output + (1 - alpha) * smoothedOutput;
+      stepper.setSpeed(smoothedOutput);
       stepper.runSpeed();
+      Serial.print("Vitesse commandée (lissée): ");
+      Serial.print(smoothedOutput);
+      Serial.println(" pas/s");
     } else {
-      Output = 0.0;
-      stepper.setSpeed(Output);
+      smoothedOutput = 0.0;
+      Output=0.0;
+      stepper.setSpeed(0);
     }
   } else {
+    smoothedOutput = 0.0;
     stepper.setSpeed(0);
   }
 }
