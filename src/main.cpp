@@ -34,9 +34,9 @@ const float DEFAULT_SETPOINT = 100.0;
 const float DEFAULT_CORRECTION_FACTOR = 1.0;
 const float DEFAULT_CUT_SPEED = 1700.0;
 const float DEFAULT_THRESHOLD_RATIO = 0.7;
-const float DEFAULT_KP = 30.0;
-const float DEFAULT_KI = 0.3;
-const float DEFAULT_KD = 2.0;
+const float DEFAULT_KP = 20.0;
+const float DEFAULT_KI = 0.5;
+const float DEFAULT_KD = 1.0;
 
 // Initialize objects
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -131,8 +131,8 @@ const unsigned long ANTI_DIVE_DURATION_MIN = 50; // Durée min (ms) à haute vit
 const unsigned long ANTI_DIVE_DURATION_MAX = 300; // Durée max (ms) à basse vitesse
 
 // Variables globales pour les moyennes glissantes
-const int N_FAST_MIN = 10;    // Min échantillons pour tension rapide
-const int N_FAST_MAX = 30;   // Max échantillons pour tension rapide
+const int N_FAST_MIN = 15;    // Min échantillons pour tension rapide
+const int N_FAST_MAX = 40;   // Max échantillons pour tension rapide
 const int N_SLOW_MIN = 10;   // Min échantillons pour tension lente
 const int N_SLOW_MAX = 50;   // Max échantillons pour tension lente
 float tension_samples_fast[50]; // Tableau pour tension rapide (taille max)
@@ -198,7 +198,7 @@ void setup() {
   }
 
   stepper.setMaxSpeed(5000);  // 5000 pas/s = 100 mm/s avec 50 pas/mm
-  stepper.setAcceleration(5000);  // 1200 mm/s²
+  stepper.setAcceleration(2500);  // 1200 mm/s²
   myPID.begin(&Input, &Output, &Setpoint, DEFAULT_KP, DEFAULT_KI, DEFAULT_KD);
   myPID.setOutputLimits(-2500, 2500);  // ±2500 pas/s = ±50 mm/s
   Ki = DEFAULT_KI;
