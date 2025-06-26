@@ -270,6 +270,15 @@ void loop() {
   }
   lastButtonState = buttonState;
 
+  // Vérifier les commandes série pour réinitialisation EEPROM
+    if (Serial.available() > 0) {
+        String command = Serial.readStringUntil('\n');
+        if (command == "RESET_EEPROM") {
+            initializeEEPROM(); // Forcer la réinitialisation
+            Serial.println("EEPROM réinitialisée via commande série");
+        }
+    }
+
   // Gestion de l'encodeur
   int currentCLK = digitalRead(ENCODER_PIN_A);
   int currentDT = digitalRead(ENCODER_PIN_B);
