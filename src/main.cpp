@@ -48,8 +48,8 @@ float lectures_vitesse[taille_filtre_vitesse];
 int index_lecture_vitesse = 0;
 float somme_lectures_vitesse = 0.0;
 float vitesse_torche_filtre = 0.0;
-float vitesse_test = 2000; // For testing
-float plasma_test_V = 100; // For testing
+float vitesse_test = 0; // For testing
+float plasma_test_V = 0; // For testing
 
 // Step counting variables
 volatile unsigned long stepCountX = 0;
