@@ -34,9 +34,9 @@ const float DEFAULT_SETPOINT = 100.0;
 const float DEFAULT_CORRECTION_FACTOR = 1.0;
 const float DEFAULT_CUT_SPEED = 1700.0;
 const float DEFAULT_THRESHOLD_RATIO = 0.7;
-const float DEFAULT_KP = 350.0;
-const float DEFAULT_KI = 0.0;
-const float DEFAULT_KD = 20.0;
+const float DEFAULT_KP = 100.0;  // Ajusté pour 50 pas/mm
+const float DEFAULT_KI = 0.1;    // Petite intégrale ajoutée
+const float DEFAULT_KD = 10.0;   // Réduit pour moins de bruit
 
 // Initialize objects
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -48,8 +48,8 @@ float lectures_vitesse[taille_filtre_vitesse];
 int index_lecture_vitesse = 0;
 float somme_lectures_vitesse = 0.0;
 float vitesse_torche_filtre = 0.0;
-float vitesse_test = 0; // For testing
-float plasma_test_V = 0; // For testing
+float vitesse_test = 2000; // For testing
+float plasma_test_V = 100; // For testing
 
 // Step counting variables
 volatile unsigned long stepCountX = 0;
@@ -197,12 +197,10 @@ void setup() {
     lectures_vitesse[i] = 0.0;
   }
 
-  stepper.setMaxSpeed(32000);
-  
-  // Configuration pour 100 ms
-  stepper.setAcceleration(60000);
+  stepper.setMaxSpeed(5000);  // 5000 pas/s = 100 mm/s avec 50 pas/mm
+  stepper.setAcceleration(60000);  // 1200 mm/s²
   myPID.begin(&Input, &Output, &Setpoint, DEFAULT_KP, DEFAULT_KI, DEFAULT_KD);
-  myPID.setOutputLimits(-32000, 32000);  // Limites de sortie
+  myPID.setOutputLimits(-2500, 2500);  // ±2500 pas/s = ±50 mm/s
   Ki = DEFAULT_KI;
   Kd = DEFAULT_KD;
   Kp = DEFAULT_KP;
@@ -507,8 +505,13 @@ void readAndFilterTension() {
       tension_samples_fast[i] = tension_reelle;
       tension_samples_slow[i] = tension_reelle;
     }
-    sum_fast = tension_reelle * N_FAST_MIN;
-    sum_slow = tension_reelle * N_SLOW_MIN;
+    float ratio = (cut_speed - 500.0) / (5000.0 - 500.0);
+    N_fast = N_FAST_MIN + (int)(ratio * (N_FAST_MAX - N_FAST_MIN));
+    N_fast = constrain(N_fast, N_FAST_MIN, N_FAST_MAX);
+    N_slow = N_SLOW_MIN + (int)(ratio * (N_SLOW_MAX - N_SLOW_MIN));
+    N_slow = constrain(N_slow, N_SLOW_MIN, N_SLOW_MAX);
+    sum_fast = tension_reelle * N_fast;
+    sum_slow = tension_reelle * N_slow;
     arrays_initialized = true;
   }
 
@@ -591,7 +594,6 @@ void managePlasmaAndTHC() {
     thc_etat = false;
   }
 
-  // THC is disabled if THC_OFF_PIN is HIGH
   if (thc_off) {
     thc_actif = false;
   } else {
