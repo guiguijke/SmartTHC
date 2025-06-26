@@ -34,9 +34,9 @@ const float DEFAULT_SETPOINT = 100.0;
 const float DEFAULT_CORRECTION_FACTOR = 1.0;
 const float DEFAULT_CUT_SPEED = 1700.0;
 const float DEFAULT_THRESHOLD_RATIO = 0.7;
-const float DEFAULT_KP = 100.0;  // Ajusté pour 50 pas/mm
-const float DEFAULT_KI = 0.1;    // Petite intégrale ajoutée
-const float DEFAULT_KD = 10.0;   // Réduit pour moins de bruit
+const float DEFAULT_KP = 30.0;
+const float DEFAULT_KI = 0.3;
+const float DEFAULT_KD = 2.0;
 
 // Initialize objects
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -131,8 +131,8 @@ const unsigned long ANTI_DIVE_DURATION_MIN = 50; // Durée min (ms) à haute vit
 const unsigned long ANTI_DIVE_DURATION_MAX = 300; // Durée max (ms) à basse vitesse
 
 // Variables globales pour les moyennes glissantes
-const int N_FAST_MIN = 5;    // Min échantillons pour tension rapide
-const int N_FAST_MAX = 20;   // Max échantillons pour tension rapide
+const int N_FAST_MIN = 10;    // Min échantillons pour tension rapide
+const int N_FAST_MAX = 30;   // Max échantillons pour tension rapide
 const int N_SLOW_MIN = 10;   // Min échantillons pour tension lente
 const int N_SLOW_MAX = 50;   // Max échantillons pour tension lente
 float tension_samples_fast[50]; // Tableau pour tension rapide (taille max)
@@ -238,7 +238,7 @@ void initializeEEPROM() {
   byte initializedFlag;
   EEPROM.get(EEPROM_INITIALIZED_FLAG, initializedFlag);
   
-  if (initializedFlag != 0xAB) {
+  if (initializedFlag != 0xAA) {
     // Initialize EEPROM with default values
     EEPROM.put(EEPROM_SETPOINT_ADDR, DEFAULT_SETPOINT);
     EEPROM.put(EEPROM_CORRECTION_FACTOR_ADDR, DEFAULT_CORRECTION_FACTOR);
@@ -249,7 +249,7 @@ void initializeEEPROM() {
     EEPROM.put(EEPROM_KD_ADDR, DEFAULT_KD);
     
     // Set the initialized flag
-    initializedFlag = 0xAB;
+    initializedFlag = 0xAA;
     EEPROM.put(EEPROM_INITIALIZED_FLAG, initializedFlag);
     
     Serial.println("EEPROM initialized with default values");
@@ -343,7 +343,7 @@ void loop() {
       threshold_speed = cut_speed * threshold_ratio;
       break;
     case 5: // PID Kp
-      Kp += delta * 10;
+      Kp += delta * 2;
       if (Kp < 0) Kp = 0;
       if (Kp != lastKp) {
         EEPROM.put(EEPROM_KP_ADDR, Kp);
@@ -361,7 +361,7 @@ void loop() {
       myPID.setCoefficients(Kp, Ki, Kd);
       break;
     case 7: // PID Kd
-      Kd += delta *2.0;
+      Kd += delta *1.0;
       if (Kd < 0) Kd = 0;
       if (Kd != lastKd) {
         EEPROM.put(EEPROM_KD_ADDR, Kd);
