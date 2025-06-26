@@ -198,7 +198,7 @@ void setup() {
   }
 
   stepper.setMaxSpeed(5000);  // 5000 pas/s = 100 mm/s avec 50 pas/mm
-  stepper.setAcceleration(60000);  // 1200 mm/s²
+  stepper.setAcceleration(5000);  // 1200 mm/s²
   myPID.begin(&Input, &Output, &Setpoint, DEFAULT_KP, DEFAULT_KI, DEFAULT_KD);
   myPID.setOutputLimits(-2500, 2500);  // ±2500 pas/s = ±50 mm/s
   Ki = DEFAULT_KI;
@@ -238,7 +238,7 @@ void initializeEEPROM() {
   byte initializedFlag;
   EEPROM.get(EEPROM_INITIALIZED_FLAG, initializedFlag);
   
-  if (initializedFlag != 0xAA) {
+  if (initializedFlag != 0xAB) {
     // Initialize EEPROM with default values
     EEPROM.put(EEPROM_SETPOINT_ADDR, DEFAULT_SETPOINT);
     EEPROM.put(EEPROM_CORRECTION_FACTOR_ADDR, DEFAULT_CORRECTION_FACTOR);
@@ -249,7 +249,7 @@ void initializeEEPROM() {
     EEPROM.put(EEPROM_KD_ADDR, DEFAULT_KD);
     
     // Set the initialized flag
-    initializedFlag = 0xAA;
+    initializedFlag = 0xAB;
     EEPROM.put(EEPROM_INITIALIZED_FLAG, initializedFlag);
     
     Serial.println("EEPROM initialized with default values");
@@ -343,7 +343,7 @@ void loop() {
       threshold_speed = cut_speed * threshold_ratio;
       break;
     case 5: // PID Kp
-      Kp += delta * 20;
+      Kp += delta * 10;
       if (Kp < 0) Kp = 0;
       if (Kp != lastKp) {
         EEPROM.put(EEPROM_KP_ADDR, Kp);
