@@ -197,12 +197,12 @@ void setup() {
     lectures_vitesse[i] = 0.0;
   }
 
-  stepper.setMaxSpeed(16000);
+  stepper.setMaxSpeed(32000);
   
   // Configuration pour 100 ms
   stepper.setAcceleration(60000);
   myPID.begin(&Input, &Output, &Setpoint, DEFAULT_KP, DEFAULT_KI, DEFAULT_KD);
-  myPID.setOutputLimits(-10000, 10000);  // Limites de sortie
+  myPID.setOutputLimits(-32000, 32000);  // Limites de sortie
   Ki = DEFAULT_KI;
   Kd = DEFAULT_KD;
   Kp = DEFAULT_KP;
@@ -225,7 +225,7 @@ void setup() {
   if (isnan(tension_correction_factor) || tension_correction_factor < 0.5 || tension_correction_factor > 2.0) tension_correction_factor = DEFAULT_CORRECTION_FACTOR;
   if (isnan(cut_speed) || cut_speed < 0 || cut_speed > 10000) cut_speed = DEFAULT_CUT_SPEED;
   if (isnan(threshold_ratio) || threshold_ratio < 0 || threshold_ratio > 1) threshold_ratio = DEFAULT_THRESHOLD_RATIO;
-  if (isnan(Kp) || Kp < 0 || Kp > 1000) Kp = DEFAULT_KP;
+  if (isnan(Kp) || Kp < 0 || Kp > 1500) Kp = DEFAULT_KP;
   if (isnan(Ki) || Ki < 0 || Ki > 1) Ki = DEFAULT_KI;
   if (isnan(Kd) || Kd < 0 || Kd > 100) Kd = DEFAULT_KD;
 
@@ -336,7 +336,7 @@ void loop() {
       threshold_speed = cut_speed * threshold_ratio;
       break;
     case 5: // PID Kp
-      Kp += delta * 10;
+      Kp += delta * 20;
       if (Kp < 0) Kp = 0;
       if (Kp != lastKp) {
         EEPROM.put(EEPROM_KP_ADDR, Kp);
@@ -345,7 +345,7 @@ void loop() {
       myPID.setCoefficients(Kp, Ki, Kd);
       break;
     case 6: // PID Ki
-      Ki += delta * 0.01;
+      Ki += delta * 0.1;
       if (Ki < 0) Ki = 0;
       if (Ki != lastKi) {
         EEPROM.put(EEPROM_KI_ADDR, Ki);
@@ -354,7 +354,7 @@ void loop() {
       myPID.setCoefficients(Kp, Ki, Kd);
       break;
     case 7: // PID Kd
-      Kd += delta * 0.01;
+      Kd += delta *2.0;
       if (Kd < 0) Kd = 0;
       if (Kd != lastKd) {
         EEPROM.put(EEPROM_KD_ADDR, Kd);
@@ -532,7 +532,7 @@ void readAndFilterTension() {
 
   Input = tension_fast;
 
-  const float SEUIL_CHUTE = 2.0;  // Volts
+  const float SEUIL_CHUTE = 5.0;  // Volts
   static bool last_anti_dive_state = false;
   if (tension_fast > tension_slow + SEUIL_CHUTE && !anti_dive_active && digitalRead(PLASMA_PIN) == LOW) {
     anti_dive_active = true;
