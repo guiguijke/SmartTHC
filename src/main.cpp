@@ -452,6 +452,7 @@ void loop() {
     loopCount = 0;
     lastLoopLogTime = currentTime;
   }
+  stepper.runSpeed();
 }
 
 void calculateSpeed() {
