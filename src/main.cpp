@@ -35,9 +35,9 @@ const float DEFAULT_SETPOINT = 120.0; // Ajusté à votre cible
 const float DEFAULT_CORRECTION_FACTOR = 1.0;
 const float DEFAULT_CUT_SPEED = 1300.0; // Ajusté à vos logs
 const float DEFAULT_THRESHOLD_RATIO = 0.8; // Ajusté pour 1040 mm/min
-const float DEFAULT_KP = 10.0; // Réduit pour moins d'oscillations
-const float DEFAULT_KI = 0.2;  // Pour correction statique
-const float DEFAULT_KD = 0.02;  // Réduit pour moins de bruit
+const float DEFAULT_KP = 7.5; // Réduit pour moins d'oscillations
+const float DEFAULT_KI = 0.15;  // Pour correction statique
+const float DEFAULT_KD = 0.025;  // Réduit pour moins de bruit
 byte initializedFlag=0xAA;
 // Initialize objects
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -209,17 +209,6 @@ void setup() {
 
   // Initialize EEPROM with default values if not already initialized
   initializeEEPROM();
-
-  // Load parameters from EEPROM
-  EEPROM.get(EEPROM_SETPOINT_ADDR, Setpoint);
-  EEPROM.get(EEPROM_CORRECTION_FACTOR_ADDR, tension_correction_factor);
-  EEPROM.get(EEPROM_CUT_SPEED_ADDR, cut_speed);
-  EEPROM.get(EEPROM_THRESHOLD_RATIO_ADDR, threshold_ratio);
-  EEPROM.get(EEPROM_KP_ADDR, Kp);
-  EEPROM.get(EEPROM_KI_ADDR, Ki);
-  EEPROM.get(EEPROM_KD_ADDR, Kd);
-
-  
 
   // Validate loaded values to prevent garbage data or NaN
   if (isnan(Setpoint) || Setpoint < 50 || Setpoint > 200) Setpoint = DEFAULT_SETPOINT;
@@ -394,7 +383,7 @@ void loop() {
       myPID.setCoefficients(Kp, Ki, Kd);
       break;
     case 7: // PID Kd
-      Kd += delta *0.01;
+      Kd += delta *0.005;
       if (Kd < 0) Kd = 0;
       if (Kd != lastKd) {
         EEPROM.put(EEPROM_KD_ADDR, Kd);
