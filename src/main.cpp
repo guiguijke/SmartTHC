@@ -412,7 +412,7 @@ void loop() {
 
   if (currentTime - lastLogTime >= LOG_INTERVAL) {
     bool plasma_pin_low = (digitalRead(PLASMA_PIN) == LOW);
-    bool thc_off = (digitalRead(THC_OFF_PIN) == LOW);
+    bool thc_off = (digitalRead(THC_OFF_PIN) == HIGH);
     bool enable_pin_low = (digitalRead(ENABLE_PIN) == LOW);
     bool arc_detecte = (tension_fast > seuil_arc);
 
@@ -627,7 +627,7 @@ void managePlasmaAndTHC() {
   bool plasma_pin_low = (digitalRead(PLASMA_PIN) == LOW);
   bool enable_pin_low = (digitalRead(ENABLE_PIN) == LOW);
   bool arc_detecte = (tension_fast > seuil_arc);
-  bool thc_off = (digitalRead(THC_OFF_PIN) == LOW);
+  bool thc_off = (digitalRead(THC_OFF_PIN) == HIGH);
   unsigned long currentTime = millis();
   if (plasma_pin_low) {
     digitalWrite(SWITCH1, LOW);
@@ -779,7 +779,7 @@ void updateLCD() {
 
         bool enable_low = digitalRead(ENABLE_PIN) == LOW;
         bool plasma_low = (digitalRead(PLASMA_PIN) == LOW);
-        bool thc_off = (digitalRead(THC_OFF_PIN) == LOW);
+        bool thc_off = (digitalRead(THC_OFF_PIN) == HIGH);
 
         if (enable_low != lastEnableLow || plasma_low != lastPlasmaLow || 
             thc_actif != lastThcActif || thc_off != lastThcOff || Output != lastOutput) {
