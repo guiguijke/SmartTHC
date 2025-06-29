@@ -59,8 +59,8 @@ unsigned long totalStepX = 0;
 unsigned long totalStepY = 0;
 const unsigned long SPEED_INTERVAL = 50;
 unsigned long lastSpeedTime = 0;
-const float DIST_PER_STEP_X = 0.0025;
-const float DIST_PER_STEP_Y = 0.0025;
+const float DIST_PER_STEP_X = 0.005;
+const float DIST_PER_STEP_Y = 0.005;
 const unsigned long MIN_STEPS = 20;
 unsigned long lastStepTime = 0;
 const unsigned long STEP_TIMEOUT = 500;
@@ -149,6 +149,10 @@ bool arrays_initialized = false; // Indicateur d'initialisation des tableaux
 // Variable globale pour thc_etat
 bool thc_etat = false; // État de la vitesse pour le THC
 
+// EEPROM write delay
+static unsigned long lastEepromWrite = 0;
+const unsigned long EEPROM_WRITE_INTERVAL = 1000;
+
 // Function declarations
 void initializeEEPROM();
 void calculateSpeed();
@@ -218,7 +222,7 @@ void setup() {
   if (isnan(Kp) || Kp < 0.0 || Kp > 1500) Kp = DEFAULT_KP;
   if (isnan(Ki) || Ki < 0.0 || Ki > 1) Ki = DEFAULT_KI;
   if (isnan(Kd) || Kd < 0.0 || Kd > 100) Kd = DEFAULT_KD;
-
+  myPID.setCoefficients(Kp, Ki, Kd);
   //myPID.setCoefficients(Kp, Ki, Kd);
   threshold_speed = cut_speed * threshold_ratio;
 
@@ -227,7 +231,7 @@ void setup() {
 
 void initializeEEPROM() {
   // Check if EEPROM has been initialized
-  
+  byte initializedFlag;
   EEPROM.get(EEPROM_INITIALIZED_FLAG, initializedFlag);
   
   if (initializedFlag != 0xAA) {
@@ -260,7 +264,7 @@ void initializeEEPROM() {
   EEPROM.get(EEPROM_KI_ADDR, Ki);
   Serial.println("Loaded Ki: " + String(Ki, 2));
   EEPROM.get(EEPROM_KD_ADDR, Kd);
-  Serial.println("Loaded Kd: " + String(Kd, 2));
+  Serial.println("Loaded Kd: " + String(Kd, 3));
 }
 
 void loop() {
@@ -288,7 +292,8 @@ void loop() {
             EEPROM.put(EEPROM_KP_ADDR, DEFAULT_KP);
             EEPROM.put(EEPROM_KI_ADDR, DEFAULT_KI);
             EEPROM.put(EEPROM_KD_ADDR, DEFAULT_KD);
-              // Load parameters from EEPROM
+            initializedFlag = 0xAA;
+            EEPROM.put(EEPROM_INITIALIZED_FLAG, initializedFlag);
             EEPROM.get(EEPROM_SETPOINT_ADDR, Setpoint);
             EEPROM.get(EEPROM_CORRECTION_FACTOR_ADDR, tension_correction_factor);
             EEPROM.get(EEPROM_CUT_SPEED_ADDR, cut_speed);
@@ -296,7 +301,8 @@ void loop() {
             EEPROM.get(EEPROM_KP_ADDR, Kp);
             EEPROM.get(EEPROM_KI_ADDR, Ki);
             EEPROM.get(EEPROM_KD_ADDR, Kd);
-            //myPID.setCoefficients(Kp, Ki, Kd);
+            myPID.setCoefficients(Kp, Ki, Kd);
+            threshold_speed = cut_speed * threshold_ratio;
             Serial.println("EEPROM réinitialisée via commande série");
         }
     }
@@ -331,63 +337,70 @@ void loop() {
   static float lastKd = Kd;
 
   switch (currentScreen) {
-    case 1: // Tension cible
+    case 1:
       Setpoint += delta;
       if (Setpoint < 50) Setpoint = 50;
       if (Setpoint > 200) Setpoint = 200;
-      if (Setpoint != lastSetpoint) {
+      if (abs(Setpoint - lastSetpoint) > 0.01 && millis() - lastEepromWrite >= EEPROM_WRITE_INTERVAL) {
         EEPROM.put(EEPROM_SETPOINT_ADDR, Setpoint);
         lastSetpoint = Setpoint;
+        lastEepromWrite = millis();
       }
       break;
-    case 2: // Facteur de correction de tension
+    case 2:
       tension_correction_factor += delta * 0.01;
-      if (tension_correction_factor != lastTensionCorrectionFactor) {
+      if (abs(tension_correction_factor - lastTensionCorrectionFactor) > 0.001 && millis() - lastEepromWrite >= EEPROM_WRITE_INTERVAL) {
         EEPROM.put(EEPROM_CORRECTION_FACTOR_ADDR, tension_correction_factor);
         lastTensionCorrectionFactor = tension_correction_factor;
+        lastEepromWrite = millis();
       }
       break;
-    case 3: // Vitesse de coupe
+    case 3:
       cut_speed += delta * 100;
       if (cut_speed < 0) cut_speed = 0;
-      if (cut_speed != lastCutSpeed) {
+      if (abs(cut_speed - lastCutSpeed) > 0.01 && millis() - lastEepromWrite >= EEPROM_WRITE_INTERVAL) {
         EEPROM.put(EEPROM_CUT_SPEED_ADDR, cut_speed);
         lastCutSpeed = cut_speed;
+        lastEepromWrite = millis();
       }
       threshold_speed = cut_speed * threshold_ratio;
       break;
-    case 4: // Seuil de vitesse
+    case 4:
       threshold_ratio += delta * 0.1;
-      if (threshold_ratio != lastThresholdRatio) {
+      if (abs(threshold_ratio - lastThresholdRatio) > 0.001 && millis() - lastEepromWrite >= EEPROM_WRITE_INTERVAL) {
         EEPROM.put(EEPROM_THRESHOLD_RATIO_ADDR, threshold_ratio);
         lastThresholdRatio = threshold_ratio;
+        lastEepromWrite = millis();
       }
       threshold_speed = cut_speed * threshold_ratio;
       break;
-    case 5: // PID Kp
-      Kp += delta * 2;
+    case 5:
+      Kp += delta * 0.5;
       if (Kp < 0) Kp = 0;
-      if (Kp != lastKp) {
+      if (abs(Kp - lastKp) > 0.01 && millis() - lastEepromWrite >= EEPROM_WRITE_INTERVAL) {
         EEPROM.put(EEPROM_KP_ADDR, Kp);
         lastKp = Kp;
+        lastEepromWrite = millis();
       }
       myPID.setCoefficients(Kp, Ki, Kd);
       break;
-    case 6: // PID Ki
+    case 6:
       Ki += delta * 0.01;
       if (Ki < 0) Ki = 0;
-      if (Ki != lastKi) {
+      if (abs(Ki - lastKi) > 0.001 && millis() - lastEepromWrite >= EEPROM_WRITE_INTERVAL) {
         EEPROM.put(EEPROM_KI_ADDR, Ki);
         lastKi = Ki;
+        lastEepromWrite = millis();
       }
       myPID.setCoefficients(Kp, Ki, Kd);
       break;
-    case 7: // PID Kd
-      Kd += delta *0.005;
+    case 7:
+      Kd += delta * 0.005;
       if (Kd < 0) Kd = 0;
-      if (Kd != lastKd) {
+      if (abs(Kd - lastKd) > 0.001 && millis() - lastEepromWrite >= EEPROM_WRITE_INTERVAL) {
         EEPROM.put(EEPROM_KD_ADDR, Kd);
         lastKd = Kd;
+        lastEepromWrite = millis();
       }
       myPID.setCoefficients(Kp, Ki, Kd);
       break;
@@ -459,12 +472,20 @@ void loop() {
     
     lastLogTime = currentTime;
   }
-  managePlasmaAndTHC();
-  readAndFilterTension();
-
+  
+  
+  
   if (currentTime - dernier_affichage >= intervalle_affichage) {
     updateLCD();
     dernier_affichage = currentTime;
+  }
+
+  readAndFilterTension();
+
+  static unsigned long lastPidTime = 0;
+  if (currentTime - lastPidTime >= 333) { // 3 kHz
+    managePlasmaAndTHC();
+    lastPidTime = currentTime;
   }
 
   loopEndTime = micros();
@@ -570,7 +591,7 @@ void readAndFilterTension() {
 
   Input = tension_fast;
 
-  const float SEUIL_CHUTE = 2.0;  // Volts
+  const float SEUIL_CHUTE = 7.0;  // Volts
   static bool last_anti_dive_state = false;
   if (tension_fast > tension_slow + SEUIL_CHUTE && !anti_dive_active && digitalRead(PLASMA_PIN) == LOW) {
     anti_dive_active = true;
@@ -635,7 +656,7 @@ void managePlasmaAndTHC() {
     thc_actif = enable_pin_low && plasma_pin_low && plasma_stabilise && arc_detecte && thc_etat && !anti_dive_active;
   }
 
-  myPID.compute();
+  
   static unsigned long lastPidTime = 0;
   static double smoothedOutput = 0.0;
   const float alpha = 0.05; // Facteur de lissage
