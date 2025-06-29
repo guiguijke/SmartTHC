@@ -467,7 +467,7 @@ void loop() {
       Serial.print(thc_off ? "ACTIVE" : "INACTIVE");
       Serial.print("p: " + String(Kp, 2));
       Serial.print(" i: " + String(Ki, 2));
-      Serial.println(" d: " + String(Kd, 2));
+      Serial.println(" d: " + String(Kd, 3));
     }
     
     lastLogTime = currentTime;
