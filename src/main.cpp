@@ -859,7 +859,7 @@ void updateLCD() {
                 break;
             case 7:
                 lcd.setCursor(8, 0);
-                lcd.print(Kd, 2);
+                lcd.print(Kd, 3);
                 break;
         }
     }
