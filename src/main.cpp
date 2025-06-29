@@ -412,7 +412,7 @@ void loop() {
 
   if (currentTime - lastLogTime >= LOG_INTERVAL) {
     bool plasma_pin_low = (digitalRead(PLASMA_PIN) == LOW);
-    bool thc_off = (digitalRead(THC_OFF_PIN) == HIGH);
+    bool thc_off = (digitalRead(THC_OFF_PIN) == LOW);
     bool enable_pin_low = (digitalRead(ENABLE_PIN) == LOW);
     bool arc_detecte = (tension_fast > seuil_arc);
 
@@ -651,7 +651,7 @@ void managePlasmaAndTHC() {
     thc_etat = false;
   }
 
-  if (thc_off) {
+  if (!thc_off) {
     thc_actif = false;
   } else {
     thc_actif = enable_pin_low && plasma_pin_low && plasma_stabilise && arc_detecte && thc_etat && !anti_dive_active;
