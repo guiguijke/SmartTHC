@@ -448,10 +448,11 @@ void loop() {
       Serial.println(Output);
       
       // Log explicite si THC inactif
-      if (!thc_actif && !thc_off) {
+      if (!thc_actif) {
         Serial.print("Raison THC inactif: ");
-        if (!enable_pin_low) Serial.println("ENABLE_PIN HIGH");
-        else if (!plasma_pin_low) Serial.println("PLASMA_PIN HIGH");
+        if (!thc_off) Serial.println("THC_OFF_PIN LOW");
+        else if (!enable_pin_low) Serial.println("ENABLE_PIN HIGH");
+        else if (!plasma_pin_low) Serial.println("PL AllowingASMA_PIN HIGH");
         else if (!plasma_stabilise) Serial.println("Stabilisation non atteinte");
         else if (!arc_detecte) Serial.println("Arc non détecté (tension faible)");
         else if (!thc_etat) Serial.println("Vitesse torche < seuil");
@@ -658,13 +659,11 @@ void managePlasmaAndTHC() {
   }
 
   
-  static unsigned long lastPidTime = 0;
+  
   static double smoothedOutput = 0.0;
   const float alpha = 0.05; // Facteur de lissage
-  if (currentTime - lastPidTime >= 333) { // 3 kHz = 0,333 ms
-    myPID.compute();
-    lastPidTime = currentTime;
-  }
+  myPID.compute();
+
 
   if (thc_actif) {
     double error = Setpoint - Input;
