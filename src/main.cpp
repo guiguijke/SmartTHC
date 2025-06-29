@@ -44,7 +44,7 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
 
 // Speed filtering variables
-const int taille_filtre_vitesse = 4;
+const int taille_filtre_vitesse = 1;
 float lectures_vitesse[taille_filtre_vitesse];
 int index_lecture_vitesse = 0;
 float somme_lectures_vitesse = 0.0;
@@ -53,8 +53,8 @@ float vitesse_test = 0; // For testing
 float plasma_test_V = 0; // For testing
 
 // Step counting variables
-volatile unsigned long stepCountX = 0;
-volatile unsigned long stepCountY = 0;
+volatile uint16_t stepCountX = 0;
+volatile uint16_t stepCountY = 0;
 unsigned long totalStepX = 0;
 unsigned long totalStepY = 0;
 const unsigned long SPEED_INTERVAL = 50;
@@ -483,10 +483,11 @@ void loop() {
   readAndFilterTension();
 
   static unsigned long lastPidTime = 0;
-  if (currentTime - lastPidTime >= 333) { // 3 kHz
-    managePlasmaAndTHC();
-    lastPidTime = currentTime;
-  }
+  unsigned long currentMicros = micros();
+  if (currentMicros - lastPidTime >= 333) { // 333 us = 3 kHz
+      managePlasmaAndTHC();
+    lastPidTime = currentMicros;
+}
 
   loopEndTime = micros();
   unsigned long loopExecutionTime = loopEndTime - loopStartTime;
