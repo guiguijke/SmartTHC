@@ -35,9 +35,9 @@ const float DEFAULT_SETPOINT = 120.0; // Ajusté à votre cible
 const float DEFAULT_CORRECTION_FACTOR = 1.0;
 const float DEFAULT_CUT_SPEED = 1300.0; // Ajusté à vos logs
 const float DEFAULT_THRESHOLD_RATIO = 0.8; // Ajusté pour 1040 mm/min
-const float DEFAULT_KP = 7.5; // Réduit pour moins d'oscillations
-const float DEFAULT_KI = 0.15;  // Pour correction statique
-const float DEFAULT_KD = 0.025;  // Réduit pour moins de bruit
+const float DEFAULT_KP = 5.0;  // Réduit pour moins d’oscillations
+const float DEFAULT_KI = 0.05; // Réduit pour moins d’intégration
+const float DEFAULT_KD = 0.01;
 byte initializedFlag=0xAA;
 // Initialize objects
 LiquidCrystal_I2C lcd(0x27, 16, 2);
