@@ -587,7 +587,7 @@ void readAndFilterTension() {
     sum_slow += tension_fast;
     index = (index + 1) % N_SLOW;
   }
-  float tension_slow = sum_slow / N_SLOW;
+  tension_slow = sum_slow / N_SLOW;
 
   // Utilisation de tension_slow uniquement
   Input = tension_fast;  // Entrée PID avec la tension lissée
@@ -630,13 +630,13 @@ void managePlasmaAndTHC() {
   
   
   static double smoothedOutput = 0.0;
-  const float alpha = 0.05; // Facteur de lissage
+  const float alpha = 0.2; // Facteur de lissage
   myPID.compute();
 
 
   if (thc_actif) {
     double error = Setpoint - Input;
-    if (abs(error) > 2.5) { // Zone morte de ±2,5 V
+    if (abs(error) > 1) { // Zone morte de ±1 V
       smoothedOutput = alpha * Output + (1 - alpha) * smoothedOutput;
       stepper.setSpeed(smoothedOutput);
       stepper.runSpeed();
