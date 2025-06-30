@@ -448,10 +448,11 @@ void loop() {
       Serial.println(Output);
       
       // Log explicite si THC inactif
-      if (!thc_actif && !thc_off) {
+      if (!thc_actif) {
         Serial.print("Raison THC inactif: ");
-        if (!enable_pin_low) Serial.println("ENABLE_PIN HIGH");
-        else if (!plasma_pin_low) Serial.println("PLASMA_PIN HIGH");
+        if (!thc_off) Serial.println("THC_OFF_PIN LOW");
+        else if (!enable_pin_low) Serial.println("ENABLE_PIN HIGH");
+        else if (!plasma_pin_low) Serial.println("PL AllowingASMA_PIN HIGH");
         else if (!plasma_stabilise) Serial.println("Stabilisation non atteinte");
         else if (!arc_detecte) Serial.println("Arc non détecté (tension faible)");
         else if (!thc_etat) Serial.println("Vitesse torche < seuil");
@@ -467,7 +468,7 @@ void loop() {
       Serial.print(thc_off ? "ACTIVE" : "INACTIVE");
       Serial.print("p: " + String(Kp, 2));
       Serial.print(" i: " + String(Ki, 2));
-      Serial.println(" d: " + String(Kd, 2));
+      Serial.println(" d: " + String(Kd, 3));
     }
     
     lastLogTime = currentTime;
@@ -633,7 +634,7 @@ void managePlasmaAndTHC() {
   bool plasma_pin_low = (digitalRead(PLASMA_PIN) == LOW);
   bool enable_pin_low = (digitalRead(ENABLE_PIN) == LOW);
   bool arc_detecte = (tension_fast > seuil_arc);
-  bool thc_off = (digitalRead(THC_OFF_PIN) == LOW);
+  bool thc_off = (digitalRead(THC_OFF_PIN) == HIGH);
   unsigned long currentTime = millis();
   if (plasma_pin_low) {
     digitalWrite(SWITCH1, LOW);
@@ -657,20 +658,18 @@ void managePlasmaAndTHC() {
     thc_etat = false;
   }
 
-  if (thc_off) {
+  if (!thc_off) {
     thc_actif = false;
   } else {
     thc_actif = enable_pin_low && plasma_pin_low && plasma_stabilise && arc_detecte && thc_etat && !anti_dive_active;
   }
 
   
-  static unsigned long lastPidTime = 0;
+  
   static double smoothedOutput = 0.0;
   const float alpha = 0.05; // Facteur de lissage
-  if (currentTime - lastPidTime >= 333) { // 3 kHz = 0,333 ms
-    myPID.compute();
-    lastPidTime = currentTime;
-  }
+  myPID.compute();
+
 
   if (thc_actif) {
     double error = Setpoint - Input;
@@ -693,173 +692,182 @@ void managePlasmaAndTHC() {
 }
 
 void updateLCD() {
-  static int lastScreen = -1;
-  static float lastTensionReelle = -1;
-  static float lastSetpoint = -1;
-  static int lastVitesse = -1;
-  static bool lastThcActif = false;
-  static double lastOutput = 0;
-  static bool lastEnableLow = false;
-  static bool lastPlasmaLow = false;
-  static bool lastThcOff = false;
+    static int lastScreen = -1;
+    static float lastTensionReelle = -1;
+    static float lastSetpoint = -1;
+    static int lastVitesse = -1;
+    static bool lastThcActif = false;
+    static double lastOutput = 0;
+    static bool lastEnableLow = false;
+    static bool lastPlasmaLow = false;
+    static bool lastThcOff = false;
+    static float lastCutSpeed = -1; // Ajouté pour suivre cut_speed
 
-  if (currentScreen != lastScreen) {
-    lcd.clear();
-    switch (currentScreen) {
-      case 0:
-        lcd.setCursor(0, 0);
-        lcd.print("TRC:     V");
-        lcd.setCursor(0, 1);
-        lcd.print("TGT:     V");
-        break;
-      case 1:
-        lcd.setCursor(0, 0);
-        lcd.print("Set V:      V");
-        break;
-      case 2:
-        lcd.setCursor(0, 0);
-        lcd.print("V factor:   ");
-        break;
-      case 3:
-        lcd.setCursor(0, 0);
-        lcd.print("CutSpd:     ");
-        break;
-      case 4:
-        lcd.setCursor(0, 0);
-        lcd.print("CutSpdThs %:");
-        break;
-      case 5:
-        lcd.setCursor(0, 0);
-        lcd.print("PID Kp:     ");
-        break;
-      case 6:
-        lcd.setCursor(0, 0);
-        lcd.print("PID Ki:     ");
-        break;
-      case 7:
-        lcd.setCursor(0, 0);
-        lcd.print("PID Kd:     ");
-        break;
-    }
-    lastScreen = currentScreen;
-    lastTensionReelle = -1;
-    lastSetpoint = -1;
-    lastVitesse = -1;
-    lastThcActif = false;
-    lastOutput = 0;
-    lastEnableLow = false;
-    lastPlasmaLow = false;
-    lastThcOff = false;
-  }
-
-  if (currentScreen == 0) {
-    if (tension_fast != lastTensionReelle) {
-      lcd.setCursor(4, 0);
-      lcd.print(tension_fast, 1);
-      lastTensionReelle = tension_fast;
-    }
-
-    if (Setpoint != lastSetpoint) {
-      lcd.setCursor(4, 1);
-      lcd.print(Setpoint, 1);
-      lastSetpoint = Setpoint;
-    }
-
-    int vitesse_affichee = (int)(vitesse_torche_filtre);
-    if (vitesse_affichee > 9999) vitesse_affichee = 9999;
-    if (vitesse_torche_filtre < 0.1) {
-      if (lastVitesse != 0) {
-        lcd.setCursor(12, 0);
-        lcd.print("   0");
-        lastVitesse = 0;
-      }
-    } else if (vitesse_affichee != lastVitesse) {
-      lcd.setCursor(12, 0);
-      lcd.print(vitesse_affichee);
-      lastVitesse = vitesse_affichee;
-    }
-
-    bool enable_low = digitalRead(ENABLE_PIN) == LOW;
-    bool plasma_low = digitalRead(PLASMA_PIN) == LOW;
-    bool thc_off = (digitalRead(THC_OFF_PIN) == LOW);
-
-    if (enable_low != lastEnableLow || plasma_low != lastPlasmaLow || 
-        thc_actif != lastThcActif || thc_off != lastThcOff || Output != lastOutput) {
-      
-      lcd.setCursor(11, 1);
-      if (enable_low) {
-        lcd.print("S"); // Standby
-      } else {
-        lcd.print("O"); // Off
-      }
-
-      lcd.setCursor(12, 1);
-      if (thc_actif) {
-        if (Output > 10) {
-          lcd.write(3); // arrowUp
-        } else if (Output < -10) {
-          lcd.write(4); // arrowDown
-        } else {
-          lcd.write(5); // stableChar
+    if (currentScreen != lastScreen) {
+        lcd.clear();
+        switch (currentScreen) {
+            case 0:
+                lcd.setCursor(0, 0);
+                lcd.print("TRC:     V");
+                lcd.setCursor(0, 1);
+                lcd.print("TGT:     V");
+                break;
+            case 1:
+                lcd.setCursor(0, 0);
+                lcd.print("Set V:      V");
+                break;
+            case 2:
+                lcd.setCursor(0, 0);
+                lcd.print("V factor:   ");
+                break;
+            case 3:
+                lcd.setCursor(0, 0);
+                lcd.print("CutSpd:     ");
+                break;
+            case 4:
+                lcd.setCursor(0, 0);
+                lcd.print("CutSpdThs %:");
+                break;
+            case 5:
+                lcd.setCursor(0, 0);
+                lcd.print("PID Kp:     ");
+                break;
+            case 6:
+                lcd.setCursor(0, 0);
+                lcd.print("PID Ki:     ");
+                break;
+            case 7:
+                lcd.setCursor(0, 0);
+                lcd.print("PID Kd:     ");
+                break;
         }
-      } else {
-        lcd.print(" "); // Espace si THC inactif
-      }
-
-      lcd.setCursor(13, 1);
-      if (thc_off && !thc_actif ) {
-        lcd.print("o"); // THC désactivé par THC_OFF_PIN
-      } else if (thc_off && thc_actif) {
-        lcd.write(2); // thcActifChar
-      } else {
-        lcd.print("-"); // THC inactif
-      }
-
-      lcd.setCursor(14, 1);
-      if (plasma_low) {
-        lcd.write(1); // plasmaChar
-      } else {
-        lcd.print(" "); // Pas d'arc
-      }
-
-      lastEnableLow = enable_low;
-      lastPlasmaLow = plasma_low;
-      lastThcActif = thc_actif;
-      lastThcOff = thc_off;
-      lastOutput = Output;
+        lastScreen = currentScreen;
+        lastTensionReelle = -1;
+        lastSetpoint = -1;
+        lastVitesse = -1;
+        lastThcActif = false;
+        lastOutput = 0;
+        lastEnableLow = false;
+        lastPlasmaLow = false;
+        lastThcOff = false;
+        lastCutSpeed = -1;
     }
-  } else {
-    switch (currentScreen) {
-      case 1:
-        lcd.setCursor(7, 0);
-        lcd.print(Setpoint, 1);
-        break;
-      case 2:
-        lcd.setCursor(10, 0);
-        lcd.print(tension_correction_factor, 2);
-        break;
-      case 3:
-        lcd.setCursor(8, 0);
-        lcd.print(cut_speed, 0);
-        break;
-      case 4:
-        lcd.setCursor(12, 0);
-        lcd.print(threshold_ratio, 1);
-        break;
-      case 5:
-        lcd.setCursor(8, 0);
-        lcd.print(Kp, 1);
-        break;
-      case 6:
-        lcd.setCursor(8, 0);
-        lcd.print(Ki, 2);
-        break;
-      case 7:
-        lcd.setCursor(8, 0);
-        lcd.print(Kd, 2);
-        break;
+
+    if (currentScreen == 0) {
+        if (tension_fast != lastTensionReelle) {
+            lcd.setCursor(4, 0);
+            lcd.print(tension_fast, 1);
+            lastTensionReelle = tension_fast;
+        }
+
+        if (Setpoint != lastSetpoint) {
+            lcd.setCursor(4, 1);
+            lcd.print(Setpoint, 1);
+            lastSetpoint = Setpoint;
+        }
+
+        int vitesse_affichee = (int)(vitesse_torche_filtre);
+        if (vitesse_affichee > 9999) vitesse_affichee = 9999;
+        if (vitesse_torche_filtre < 0.1) {
+            if (lastVitesse != 0) {
+                lcd.setCursor(12, 0);
+                lcd.print("   0");
+                lastVitesse = 0;
+            }
+        } else if (vitesse_affichee != lastVitesse) {
+            lcd.setCursor(12, 0);
+            char buffer[5];
+            snprintf(buffer, sizeof(buffer), "%4d", vitesse_affichee); // Alignement à droite
+            lcd.print(buffer);
+            lastVitesse = vitesse_affichee;
+        }
+
+        bool enable_low = digitalRead(ENABLE_PIN) == LOW;
+        bool plasma_low = (digitalRead(PLASMA_PIN) == LOW);
+        bool thc_off = (digitalRead(THC_OFF_PIN) == HIGH);
+
+        if (enable_low != lastEnableLow || plasma_low != lastPlasmaLow || 
+            thc_actif != lastThcActif || thc_off != lastThcOff || Output != lastOutput) {
+            
+            lcd.setCursor(11, 1);
+            if (enable_low) {
+                lcd.print("S");
+            } else {
+                lcd.print("O");
+            }
+
+            lcd.setCursor(12, 1);
+            if (thc_actif) {
+                if (Output > 10) {
+                    lcd.write(3);
+                } else if (Output < -10) {
+                    lcd.write(4);
+                } else {
+                    lcd.write(5);
+                }
+            } else {
+                lcd.print(" ");
+            }
+
+            lcd.setCursor(13, 1);
+            if (thc_off && !thc_actif) {
+                lcd.print("o");
+            } else if (thc_off && thc_actif) {
+                lcd.write(2);
+            } else {
+                lcd.print("-");
+            }
+
+            lcd.setCursor(14, 1);
+            if (plasma_low) {
+                lcd.write(1);
+            } else {
+                lcd.print(" ");
+            }
+
+            lastEnableLow = enable_low;
+            lastPlasmaLow = plasma_low;
+            lastThcActif = thc_actif;
+            lastThcOff = thc_off;
+            lastOutput = Output;
+        }
+    } else {
+        switch (currentScreen) {
+            case 1:
+                lcd.setCursor(7, 0);
+                lcd.print(Setpoint, 1);
+                break;
+            case 2:
+                lcd.setCursor(10, 0);
+                lcd.print(tension_correction_factor, 2);
+                break;
+            case 3:
+                if (cut_speed != lastCutSpeed) {
+                    lcd.setCursor(8, 0);
+                    char buffer[5];
+                    snprintf(buffer, sizeof(buffer), "%4.0f", cut_speed); // Alignement à droite
+                    lcd.print(buffer);
+                    lastCutSpeed = cut_speed;
+                }
+                break;
+            case 4:
+                lcd.setCursor(12, 0);
+                lcd.print(threshold_ratio, 1);
+                break;
+            case 5:
+                lcd.setCursor(8, 0);
+                lcd.print(Kp, 1);
+                break;
+            case 6:
+                lcd.setCursor(8, 0);
+                lcd.print(Ki, 2);
+                break;
+            case 7:
+                lcd.setCursor(8, 0);
+                lcd.print(Kd, 3);
+                break;
+        }
     }
-  }
 }
 
 void countStepX() {
