@@ -480,12 +480,13 @@ void loop() {
     dernier_affichage = currentTime;
   }
 
-  readAndFilterTension();
+  
 
   static unsigned long lastPidTime = 0;
   unsigned long currentMicros = micros();
   if (currentMicros - lastPidTime >= 333) { // 333 us = 3 kHz
-      managePlasmaAndTHC();
+    readAndFilterTension();  
+    managePlasmaAndTHC();
     lastPidTime = currentMicros;
 }
 
@@ -554,72 +555,77 @@ void calculateSpeed() {
 }
 
 void readAndFilterTension() {
+  // Lecture de la tension brute
   int reading = analogRead(PLASMA_VOLTAGE);
   float tension_reelle = (reading / 16383.0) * 5.0 * 83.27 * tension_correction_factor + plasma_test_V;
 
-  if (!arrays_initialized) {
-    for (int i = 0; i < N_SLOW_MAX; i++) {
-      tension_samples_fast[i] = tension_reelle;
-      tension_samples_slow[i] = tension_reelle;
-    }
-    float ratio = (cut_speed - 500.0) / (5000.0 - 500.0);
-    N_fast = N_FAST_MIN + (int)(ratio * (N_FAST_MAX - N_FAST_MIN));
-    N_fast = constrain(N_fast, N_FAST_MIN, N_FAST_MAX);
-    N_slow = N_SLOW_MIN + (int)(ratio * (N_SLOW_MAX - N_SLOW_MIN));
-    N_slow = constrain(N_slow, N_SLOW_MIN, N_SLOW_MAX);
-    sum_fast = tension_reelle * N_fast;
-    sum_slow = tension_reelle * N_slow;
-    arrays_initialized = true;
+  // Variables statiques pour les moyennes exponentielles
+  static float tension_fast = 0.0;  // Moyenne rapide (~500 ms)
+  static float tension_slow = 0.0;  // Moyenne lente (~5000 ms)
+  static bool initialized = false;   // Indicateur d'initialisation
+
+  // Coefficients de lissage pour moyennes exponentielles
+  const float ALPHA_FAST = 0.000667; // 1/(3000 * 0.5) pour 500 ms à 3 kHz
+  const float ALPHA_SLOW = 0.0000667; // 1/(3000 * 5) pour 5000 ms à 3 kHz
+
+  // Initialisation avec la première mesure
+  if (!initialized) {
+    tension_fast = tension_reelle;
+    tension_slow = tension_reelle;
+    initialized = true;
+  } else {
+    // Mise à jour des moyennes exponentielles
+    tension_fast = ALPHA_FAST * tension_reelle + (1.0 - ALPHA_FAST) * tension_fast;
+    tension_slow = ALPHA_SLOW * tension_reelle + (1.0 - ALPHA_SLOW) * tension_slow;
   }
 
-  float ratio = (cut_speed - 500.0) / (5000.0 - 500.0);
-  N_fast = N_FAST_MIN + (int)(ratio * (N_FAST_MAX - N_FAST_MIN));
-  N_slow = N_SLOW_MIN + (int)(ratio * (N_SLOW_MAX - N_SLOW_MIN));
-  N_fast = constrain(N_fast, N_FAST_MIN, N_FAST_MAX);
-  N_slow = constrain(N_slow, N_SLOW_MIN, N_SLOW_MAX);
-
-  sum_fast -= tension_samples_fast[index_fast];
-  tension_samples_fast[index_fast] = tension_reelle;
-  sum_fast += tension_reelle;
-  index_fast = (index_fast + 1) % N_fast;
-  tension_fast = sum_fast / N_fast;
-
-  sum_slow -= tension_samples_slow[index_slow];
-  tension_samples_slow[index_slow] = tension_reelle;
-  sum_slow += tension_reelle;
-  index_slow = (index_slow + 1) % N_slow;
-  tension_slow = sum_slow / N_slow;
-
+  // Mise à jour de l'entrée PID
   Input = tension_fast;
 
-  const float SEUIL_CHUTE = 7.0;  // Volts
+  // Logique anti-dive
+  const float SEUIL_CHUTE = 7.0;          // Seuil de détection de chute (V)
+  const float SEUIL_RETOUR = 3.0;         // Marge de tolérance pour le retour (V)
+  const unsigned long MAX_ANTI_DIVE_DURATION = 2000; // Durée max (ms)
+  static float tension_slow_at_activation = 0.0; // Tension lente sauvegardée
   static bool last_anti_dive_state = false;
+
+  // Activation de l'anti-dive
   if (tension_fast > tension_slow + SEUIL_CHUTE && !anti_dive_active && digitalRead(PLASMA_PIN) == LOW) {
     anti_dive_active = true;
     anti_dive_start_time = millis();
+    tension_slow_at_activation = tension_slow; // Sauvegarde de la tension lente
     if (!last_anti_dive_state) {
       Serial.print("Anti-dive ON | Tension de coupe: ");
       Serial.print(tension_reelle);
       Serial.print(" V | Tension rapide: ");
       Serial.print(tension_fast);
+      Serial.print(" V | Tension lente sauvegardée: ");
+      Serial.print(tension_slow_at_activation);
       Serial.println(" V");
     }
   }
 
-  unsigned long ANTI_DIVE_DURATION = ANTI_DIVE_DURATION_MAX - 
-    (ANTI_DIVE_DURATION_MAX - ANTI_DIVE_DURATION_MIN) * ratio;
-  ANTI_DIVE_DURATION = constrain(ANTI_DIVE_DURATION, ANTI_DIVE_DURATION_MIN, ANTI_DIVE_DURATION_MAX);
-
-  if (anti_dive_active && (millis() - anti_dive_start_time >= ANTI_DIVE_DURATION)) {
-    anti_dive_active = false;
-    if (last_anti_dive_state) {
-      Serial.print("Anti-dive OFF | Tension de coupe: ");
-      Serial.print(tension_reelle);
-      Serial.print(" V | Tension rapide: ");
-      Serial.print(tension_fast);
-      Serial.println(" V");
+  // Désactivation de l'anti-dive
+  if (anti_dive_active) {
+    bool voltage_condition = (tension_fast <= tension_slow_at_activation + SEUIL_RETOUR);
+    bool time_condition = (millis() - anti_dive_start_time >= MAX_ANTI_DIVE_DURATION);
+    if (voltage_condition || time_condition) {
+      anti_dive_active = false;
+      if (last_anti_dive_state) {
+        if (voltage_condition) {
+          Serial.println("Anti-dive OFF | Tension revenue à la normale");
+        } else {
+          Serial.println("Anti-dive OFF | Timeout atteint");
+        }
+        Serial.print("Tension de coupe: ");
+        Serial.print(tension_reelle);
+        Serial.print(" V | Tension rapide: ");
+        Serial.print(tension_fast);
+        Serial.println(" V");
+      }
     }
   }
+
   last_anti_dive_state = anti_dive_active;
 }
 
