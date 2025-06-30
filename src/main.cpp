@@ -556,74 +556,41 @@ void calculateSpeed() {
 }
 
 void readAndFilterTension() {
-  // Lecture de la tension brute
-  int reading = analogRead(PLASMA_VOLTAGE);
-  float tension_reelle = (reading / 16383.0) * 5.0 * 83.27 * tension_correction_factor + plasma_test_V;
+  static unsigned long start_time = 0;
+  static bool warmed_up = false;
+  if (start_time == 0) {
+    start_time = millis();
+  }
+  if (millis() - start_time >= 1000) {  // Warm-up de 1 seconde
+    warmed_up = true;
+  }
 
-  // Indicateur d'initialisation statique
+  int reading = analogRead(PLASMA_VOLTAGE);
+  tension_fast = (reading / 16383.0) * 5.0 * 83.27 * tension_correction_factor + plasma_test_V;
+
+  // Moyenne glissante sur 10 lectures pour tension_slow
+  const int N_SLOW = 100;
+  static float tension_samples[N_SLOW];
+  static int index = 0;
+  static float sum_slow = 0.0;
   static bool initialized = false;
 
-  // Coefficients de lissage pour moyennes exponentielles
-  const float ALPHA_FAST = 0.00333;  // 100 ms à 3 kHz
-  const float ALPHA_SLOW = 0.000333; // 1 s à 3 kHz
-
-  // Initialisation avec la première mesure
   if (!initialized) {
-    tension_fast = tension_reelle;  // Utilise la globale
-    tension_slow = tension_reelle;  // Utilise la globale
+    for (int i = 0; i < N_SLOW; i++) {
+      tension_samples[i] = tension_fast;
+    }
+    sum_slow = tension_fast * N_SLOW;
     initialized = true;
   } else {
-    // Mise à jour des moyennes exponentielles avec les globales
-    tension_fast = ALPHA_FAST * tension_reelle + (1.0 - ALPHA_FAST) * tension_fast;
-    tension_slow = ALPHA_SLOW * tension_reelle + (1.0 - ALPHA_SLOW) * tension_slow;
+    sum_slow -= tension_samples[index];
+    tension_samples[index] = tension_fast;
+    sum_slow += tension_fast;
+    index = (index + 1) % N_SLOW;
   }
+  float tension_slow = sum_slow / N_SLOW;
 
-  // Mise à jour de l'entrée PID
-  Input = tension_fast;
-
-  // Logique anti-dive (reste inchangée)
-  const float SEUIL_CHUTE = 7.0;
-  const float SEUIL_RETOUR = 3.0;
-  const unsigned long MAX_ANTI_DIVE_DURATION = 2000;
-  static float tension_slow_at_activation = 0.0;
-  static bool last_anti_dive_state = false;
-
-  if (tension_fast > tension_slow + SEUIL_CHUTE && !anti_dive_active && digitalRead(PLASMA_PIN) == LOW) {
-    anti_dive_active = true;
-    anti_dive_start_time = millis();
-    tension_slow_at_activation = tension_slow;
-    if (!last_anti_dive_state) {
-      Serial.print("Anti-dive ON | Tension de coupe: ");
-      Serial.print(tension_reelle);
-      Serial.print(" V | Tension rapide: ");
-      Serial.print(tension_fast);
-      Serial.print(" V | Tension lente sauvegardée: ");
-      Serial.print(tension_slow_at_activation);
-      Serial.println(" V");
-    }
-  }
-
-  if (anti_dive_active) {
-    bool voltage_condition = (tension_fast <= tension_slow_at_activation + SEUIL_RETOUR);
-    bool time_condition = (millis() - anti_dive_start_time >= MAX_ANTI_DIVE_DURATION);
-    if (voltage_condition || time_condition) {
-      anti_dive_active = false;
-      if (last_anti_dive_state) {
-        if (voltage_condition) {
-          Serial.println("Anti-dive OFF | Tension revenue à la normale");
-        } else {
-          Serial.println("Anti-dive OFF | Timeout atteint");
-        }
-        Serial.print("Tension de coupe: ");
-        Serial.print(tension_reelle);
-        Serial.print(" V | Tension rapide: ");
-        Serial.print(tension_fast);
-        Serial.println(" V");
-      }
-    }
-  }
-
-  last_anti_dive_state = anti_dive_active;
+  // Utilisation de tension_slow uniquement
+  Input = tension_fast;  // Entrée PID avec la tension lissée
 }
 
 void managePlasmaAndTHC() {
