@@ -36,8 +36,8 @@ const float DEFAULT_CORRECTION_FACTOR = 1.0;
 const float DEFAULT_CUT_SPEED = 1300.0; // Ajusté à vos logs
 const float DEFAULT_THRESHOLD_RATIO = 0.8; // Ajusté pour 1040 mm/min
 const float DEFAULT_KP = 3.0;  // Gain proportionnel réduit
-const float DEFAULT_KI = 0.02; // Gain intégral réduit
-const float DEFAULT_KD = 0.02;
+const float DEFAULT_KI = 0.01; // Gain intégral réduit
+const float DEFAULT_KD = 0.1;
 byte initializedFlag=0xAA;
 // Initialize objects
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -701,12 +701,12 @@ void managePlasmaAndTHC() {
   thc_actif = thc_actif_new;
 
   static double smoothedOutput = 0.0;
-  const float alpha = 0.4; // Facteur de lissage
+  const float alpha = 0.5; // Facteur de lissage
   myPID.compute();
 
   if (thc_actif) {
     double error = Setpoint - Input;
-    if (abs(error) > 0.5) { // Zone morte de ±0.5 V
+    if (abs(error) > 2) { // Zone morte de ±0.5 V
       smoothedOutput = alpha * Output + (1 - alpha) * smoothedOutput;
       stepper.setSpeed(smoothedOutput);
       stepper.runSpeed();
