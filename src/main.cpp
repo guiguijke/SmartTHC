@@ -35,9 +35,9 @@ const float DEFAULT_SETPOINT = 120.0; // Ajusté à votre cible
 const float DEFAULT_CORRECTION_FACTOR = 1.0;
 const float DEFAULT_CUT_SPEED = 1300.0; // Ajusté à vos logs
 const float DEFAULT_THRESHOLD_RATIO = 0.8; // Ajusté pour 1040 mm/min
-const float DEFAULT_KP = 5.0;  // Réduit pour moins d’oscillations
-const float DEFAULT_KI = 0.05; // Réduit pour moins d’intégration
-const float DEFAULT_KD = 0.01;
+const float DEFAULT_KP = 3.0;  // Gain proportionnel réduit
+const float DEFAULT_KI = 0.02; // Gain intégral réduit
+const float DEFAULT_KD = 0.02;
 byte initializedFlag=0xAA;
 // Initialize objects
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -206,11 +206,12 @@ void setup() {
   stepper.setAcceleration(5000);  
   myPID.begin(&Input, &Output, &Setpoint, DEFAULT_KP, DEFAULT_KI, DEFAULT_KD);
   myPID.setOutputLimits(-2500, 2500);  // ±2500 pas/s = ±50 mm/s
+  myPID.setWindUpLimits(-300, 300); // Limites de ±300 pas/s pour le terme intégral
   Ki = DEFAULT_KI;
   Kd = DEFAULT_KD;
   Kp = DEFAULT_KP;
   myPID.setCoefficients(Kp, Ki, Kd);
-
+  myPID.start();
   // Initialize EEPROM with default values if not already initialized
   initializeEEPROM();
 
@@ -223,7 +224,7 @@ void setup() {
   if (isnan(Ki) || Ki < 0.0 || Ki > 1) Ki = DEFAULT_KI;
   if (isnan(Kd) || Kd < 0.0 || Kd > 100) Kd = DEFAULT_KD;
   myPID.setCoefficients(Kp, Ki, Kd);
-  //myPID.setCoefficients(Kp, Ki, Kd);
+  
   threshold_speed = cut_speed * threshold_ratio;
 
   analogReadResolution(14); // ADC à 14 bits
@@ -565,32 +566,97 @@ void readAndFilterTension() {
     warmed_up = true;
   }
 
+  // Lecture de la tension brute
   int reading = analogRead(PLASMA_VOLTAGE);
-  tension_fast = (reading / 16383.0) * 5.0 * 83.27 * tension_correction_factor + plasma_test_V;
+  float tension_raw = (reading / 16383.0) * 5.0 * 83.27 * tension_correction_factor + plasma_test_V;
+  const float SEUIL_CHUTE = 5.0;      // Seuil pour activer l'anti-dive
+  const float SEUIL_RETOUR = 3.0;     // Seuil pour désactiver l'anti-dive
+  const unsigned long MAX_ANTI_DIVE_DURATION = 2000;
+  // Moyenne glissante sur 5 échantillons pour tension_fast
+  const int N_FAST = 5;
+  static float tension_samples_fast[N_FAST];
+  static int index_fast = 0;
+  static float sum_fast = 0.0;
+  static bool initialized_fast = false;
 
-  // Moyenne glissante sur 10 lectures pour tension_slow
-  const int N_SLOW = 100;
-  static float tension_samples[N_SLOW];
-  static int index = 0;
-  static float sum_slow = 0.0;
-  static bool initialized = false;
-
-  if (!initialized) {
-    for (int i = 0; i < N_SLOW; i++) {
-      tension_samples[i] = tension_fast;
+  if (!initialized_fast) {
+    for (int i = 0; i < N_FAST; i++) {
+      tension_samples_fast[i] = tension_raw;
     }
-    sum_slow = tension_fast * N_SLOW;
-    initialized = true;
+    sum_fast = tension_raw * N_FAST;
+    initialized_fast = true;
   } else {
-    sum_slow -= tension_samples[index];
-    tension_samples[index] = tension_fast;
-    sum_slow += tension_fast;
-    index = (index + 1) % N_SLOW;
+    sum_fast -= tension_samples_fast[index_fast];
+    tension_samples_fast[index_fast] = tension_raw;
+    sum_fast += tension_raw;
+    index_fast = (index_fast + 1) % N_FAST;
+  }
+  tension_fast = sum_fast / N_FAST;
+
+  // Moyenne glissante sur 100 échantillons pour tension_slow
+  const int N_SLOW = 100;
+  static float tension_samples_slow[N_SLOW];
+  static int index_slow = 0;
+  static float sum_slow = 0.0;
+  static bool initialized_slow = false;
+
+  if (!initialized_slow) {
+    for (int i = 0; i < N_SLOW; i++) {
+      tension_samples_slow[i] = tension_raw;
+    }
+    sum_slow = tension_raw * N_SLOW;
+    initialized_slow = true;
+  } else {
+    sum_slow -= tension_samples_slow[index_slow];
+    tension_samples_slow[index_slow] = tension_raw;
+    sum_slow += tension_raw;
+    index_slow = (index_slow + 1) % N_SLOW;
   }
   tension_slow = sum_slow / N_SLOW;
 
-  // Utilisation de tension_slow uniquement
-  Input = tension_fast;  // Entrée PID avec la tension lissée
+  // Utilisation de tension_slow pour le PID
+  Input = tension_fast;
+
+  // Logique anti-dive avec tension_fast
+  static float tension_at_activation = 0.0;
+  static bool last_anti_dive_state = false;
+
+  if (warmed_up && tension_fast > tension_slow + SEUIL_CHUTE && !anti_dive_active && digitalRead(PLASMA_PIN) == LOW) {
+    anti_dive_active = true;
+    anti_dive_start_time = millis();
+    tension_at_activation = tension_slow;
+    if (!last_anti_dive_state) {
+      Serial.print("Anti-dive ON | Tension de coupe: ");
+      Serial.print(tension_fast);
+      Serial.print(" V | Tension lente: ");
+      Serial.print(tension_slow);
+      Serial.print(" V | Tension sauvegardée: ");
+      Serial.print(tension_at_activation);
+      Serial.println(" V");
+    }
+  }
+
+  if (anti_dive_active) {
+    bool voltage_condition = (tension_fast <= tension_at_activation + SEUIL_RETOUR);
+    bool time_condition = (millis() - anti_dive_start_time >= MAX_ANTI_DIVE_DURATION);
+    if (voltage_condition || time_condition) {
+      anti_dive_active = false;
+      if (last_anti_dive_state) {
+        if (voltage_condition) {
+          Serial.println("Anti-dive OFF | Tension revenue à la normale");
+        } else {
+          Serial.println("Anti-dive OFF | Timeout atteint");
+        }
+        Serial.print("Tension de coupe: ");
+        Serial.print(tension_fast);
+        Serial.print(" V | Tension lente: ");
+        Serial.print(tension_slow);
+        Serial.println(" V");
+      }
+    }
+  }
+
+  last_anti_dive_state = anti_dive_active;
 }
 
 void managePlasmaAndTHC() {
@@ -599,6 +665,7 @@ void managePlasmaAndTHC() {
   bool arc_detecte = (tension_fast > seuil_arc);
   bool thc_off = (digitalRead(THC_OFF_PIN) == HIGH);
   unsigned long currentTime = millis();
+
   if (plasma_pin_low) {
     digitalWrite(SWITCH1, LOW);
     digitalWrite(SWITCH2, LOW);
@@ -621,31 +688,34 @@ void managePlasmaAndTHC() {
     thc_etat = false;
   }
 
-  if (!thc_off) {
-    thc_actif = false;
-  } else {
-    thc_actif = enable_pin_low && plasma_pin_low && plasma_stabilise && arc_detecte && thc_etat && !anti_dive_active;
+  // Déterminer l'état du THC
+  bool thc_actif_new = thc_off && enable_pin_low && plasma_pin_low && plasma_stabilise && arc_detecte && thc_etat && !anti_dive_active;
+
+  // Réinitialiser le PID si passage de THC inactif à actif
+  static bool last_thc_actif = false;
+  if (thc_actif_new && !last_thc_actif) {
+    myPID.reset(); // Réinitialise les termes I et D
+    Serial.println("PID réinitialisé (passage THC inactif à actif)");
   }
+  last_thc_actif = thc_actif_new;
+  thc_actif = thc_actif_new;
 
-  
-  
   static double smoothedOutput = 0.0;
-  const float alpha = 0.2; // Facteur de lissage
+  const float alpha = 0.4; // Facteur de lissage
   myPID.compute();
-
 
   if (thc_actif) {
     double error = Setpoint - Input;
-    if (abs(error) > 1) { // Zone morte de ±1 V
+    if (abs(error) > 0.5) { // Zone morte de ±0.5 V
       smoothedOutput = alpha * Output + (1 - alpha) * smoothedOutput;
       stepper.setSpeed(smoothedOutput);
       stepper.runSpeed();
-      Serial.print("Vitesse commandée (lissée): ");
-      Serial.print(smoothedOutput);
-      Serial.println(" pas/s");
+      // Serial.print("Vitesse commandée (lissée): ");
+      // Serial.print(smoothedOutput);
+      // Serial.println(" pas/s");
     } else {
       smoothedOutput = 0.0;
-      Output=0.0;
+      Output = 0.0;
       stepper.setSpeed(0);
     }
   } else {
