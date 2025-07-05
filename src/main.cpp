@@ -34,9 +34,9 @@ const float DEFAULT_SETPOINT = 120.0; // Ajusté à votre cible
 const float DEFAULT_CORRECTION_FACTOR = 1.0;
 const float DEFAULT_CUT_SPEED = 1300.0; // Ajusté à vos logs
 const float DEFAULT_THRESHOLD_RATIO = 0.8; // Ajusté pour 1040 mm/min
-const float DEFAULT_KP = 3.0;  // Gain proportionnel réduit
-const float DEFAULT_KI = 0.01; // Gain intégral réduit
-const float DEFAULT_KD = 0.1;
+const float DEFAULT_KP = 0.75;  // Gain proportionnel réduit
+const float DEFAULT_KI = 0.001; // Gain intégral réduit
+const float DEFAULT_KD = 0.6;
 byte initializedFlag=0xAA;
 // Initialize objects
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -131,19 +131,19 @@ const unsigned long ANTI_DIVE_DURATION_MIN = 50; // Durée min (ms) à haute vit
 const unsigned long ANTI_DIVE_DURATION_MAX = 300; // Durée max (ms) à basse vitesse
 
 // Variables globales pour les moyennes glissantes
-const int N_FAST_MIN = 5;    // Min échantillons pour tension rapide
-const int N_FAST_MAX = 20;   // Max échantillons pour tension rapide
-const int N_SLOW_MIN = 10;   // Min échantillons pour tension lente
-const int N_SLOW_MAX = 50;   // Max échantillons pour tension lente
-float tension_samples_fast[50]; // Tableau pour tension rapide (taille max)
-float tension_samples_slow[50]; // Tableau pour tension lente (taille max)
-int index_fast = 0;
-int index_slow = 0;
-float sum_fast = 0.0;
-float sum_slow = 0.0;
-int N_fast = N_FAST_MIN;
-int N_slow = N_SLOW_MIN;
-bool arrays_initialized = false; // Indicateur d'initialisation des tableaux
+// const int N_FAST_MIN = 5;    // Min échantillons pour tension rapide
+// const int N_FAST_MAX = 20;   // Max échantillons pour tension rapide
+// const int N_SLOW_MIN = 10;   // Min échantillons pour tension lente
+// const int N_SLOW_MAX = 50;   // Max échantillons pour tension lente
+// float tension_samples_fast[50]; // Tableau pour tension rapide (taille max)
+// float tension_samples_slow[50]; // Tableau pour tension lente (taille max)
+// int index_fast = 0;
+// int index_slow = 0;
+// float sum_fast = 0.0;
+// float sum_slow = 0.0;
+// int N_fast = N_FAST_MIN;
+// int N_slow = N_SLOW_MIN;
+// bool arrays_initialized = false; // Indicateur d'initialisation des tableaux
 
 // Variable globale pour thc_etat
 bool thc_etat = false; // État de la vitesse pour le THC
@@ -205,12 +205,12 @@ void setup() {
   stepper.setAcceleration(5000);  
   myPID.begin(&Input, &Output, &Setpoint, DEFAULT_KP, DEFAULT_KI, DEFAULT_KD);
   myPID.setOutputLimits(-2500, 2500);  // ±2500 pas/s = ±50 mm/s
-  myPID.setWindUpLimits(-300, 300); // Limites de ±300 pas/s pour le terme intégral
+  myPID.setWindUpLimits(-50, 50); // Limites de ±300 pas/s pour le terme intégral
   Ki = DEFAULT_KI;
   Kd = DEFAULT_KD;
   Kp = DEFAULT_KP;
   myPID.setCoefficients(Kp, Ki, Kd);
-  myPID.start();
+  
   // Initialize EEPROM with default values if not already initialized
   initializeEEPROM();
 
@@ -385,7 +385,7 @@ void loop() {
       myPID.setCoefficients(Kp, Ki, Kd);
       break;
     case 6:
-      Ki += delta * 0.01;
+      Ki += delta * 0.001;
       if (Ki < 0) Ki = 0;
       if (abs(Ki - lastKi) > 0.001 && millis() - lastEepromWrite >= EEPROM_WRITE_INTERVAL) {
         EEPROM.put(EEPROM_KI_ADDR, Ki);
@@ -395,7 +395,7 @@ void loop() {
       myPID.setCoefficients(Kp, Ki, Kd);
       break;
     case 7:
-      Kd += delta * 0.005;
+      Kd += delta * 0.05;
       if (Kd < 0) Kd = 0;
       if (abs(Kd - lastKd) > 0.001 && millis() - lastEepromWrite >= EEPROM_WRITE_INTERVAL) {
         EEPROM.put(EEPROM_KD_ADDR, Kd);
@@ -441,11 +441,9 @@ void loop() {
       Serial.print(" V | Tension slow: ");
       Serial.print(tension_slow);
       Serial.print(" V | Anti-dive: ");
-      Serial.print(anti_dive_active ? "Actif" : "Inactif");
-      Serial.print(" | Tension cible: ");
-      Serial.print(Setpoint);
-      Serial.print(" V | PID Output: ");
-      Serial.println(Output);
+      Serial.println(anti_dive_active ? "Actif" : "Inactif");
+ 
+      
       
       // Log explicite si THC inactif
       if (!thc_actif) {
@@ -459,6 +457,13 @@ void loop() {
         else if (anti_dive_active) Serial.println("Anti-dive actif");
         else Serial.println("Condition inconnue");
     }
+    myPID.debug(&Serial, "myPID", PRINT_INPUT    | // Can include or comment out any of these terms to print
+                                              PRINT_OUTPUT   | // in the Serial plotter
+                                              PRINT_SETPOINT |
+                                              //PRINT_BIAS     |
+                                              PRINT_P        |
+                                              PRINT_I        |
+                                              PRINT_D);
     } else {
       Serial.print("Cut Speed setup: ");
       Serial.print(cut_speed);
@@ -469,6 +474,13 @@ void loop() {
       Serial.print("p: " + String(Kp, 2));
       Serial.print(" i: " + String(Ki, 2));
       Serial.println(" d: " + String(Kd, 3));
+      myPID.debug(&Serial, "myPID", PRINT_INPUT    | // Can include or comment out any of these terms to print
+                                              PRINT_OUTPUT   | // in the Serial plotter
+                                              PRINT_SETPOINT |
+                                              //PRINT_BIAS     |
+                                              PRINT_P        |
+                                              PRINT_I        |
+                                              PRINT_D);
     }
     
     lastLogTime = currentTime;
@@ -572,7 +584,7 @@ void readAndFilterTension() {
   const float SEUIL_RETOUR = 3.0;     // Seuil pour désactiver l'anti-dive
   const unsigned long MAX_ANTI_DIVE_DURATION = 2000;
   // Moyenne glissante sur 5 échantillons pour tension_fast
-  const int N_FAST = 5;
+  const int N_FAST = 15;
   static float tension_samples_fast[N_FAST];
   static int index_fast = 0;
   static float sum_fast = 0.0;
@@ -897,7 +909,7 @@ void updateLCD() {
                 break;
             case 6:
                 lcd.setCursor(8, 0);
-                lcd.print(Ki, 2);
+                lcd.print(Ki, 3);
                 break;
             case 7:
                 lcd.setCursor(8, 0);
