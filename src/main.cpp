@@ -706,7 +706,7 @@ void managePlasmaAndTHC() {
 
   if (thc_actif) {
     double error = Setpoint - Input;
-    if (abs(error) > 2) { // Zone morte de ±0.5 V
+    if (abs(error) > 2) { // Zone morte de ±1 V
       smoothedOutput = alpha * Output + (1 - alpha) * smoothedOutput;
       stepper.setSpeed(smoothedOutput);
       stepper.runSpeed();
