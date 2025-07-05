@@ -34,9 +34,9 @@ const float DEFAULT_SETPOINT = 120.0; // Ajusté à votre cible
 const float DEFAULT_CORRECTION_FACTOR = 1.0;
 const float DEFAULT_CUT_SPEED = 1300.0; // Ajusté à vos logs
 const float DEFAULT_THRESHOLD_RATIO = 0.8; // Ajusté pour 1040 mm/min
-const float DEFAULT_KP = 2;  // Gain proportionnel réduit
-const float DEFAULT_KI = 0.0001; // Gain intégral réduit
-const float DEFAULT_KD = 0.3;
+const float DEFAULT_KP = 20;  // Gain proportionnel réduit
+const float DEFAULT_KI = 2.5; // Gain intégral réduit
+const float DEFAULT_KD = 2;
 byte initializedFlag=0xAA;
 // Initialize objects
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -375,7 +375,7 @@ void loop() {
       threshold_speed = cut_speed * threshold_ratio;
       break;
     case 5:
-      Kp += delta * 0.05;
+      Kp += delta * 1.0;
       if (Kp < 0) Kp = 0;
       if (abs(Kp - lastKp) > 0.01 && millis() - lastEepromWrite >= EEPROM_WRITE_INTERVAL) {
         EEPROM.put(EEPROM_KP_ADDR, Kp);
@@ -385,9 +385,9 @@ void loop() {
       myPID.setCoefficients(Kp, Ki, Kd);
       break;
     case 6:
-      Ki += delta * 0.0001;
+      Ki += delta * 0.5;
       if (Ki < 0) Ki = 0;
-      if (abs(Ki - lastKi) > 0.00001 && millis() - lastEepromWrite >= EEPROM_WRITE_INTERVAL) {
+      if (abs(Ki - lastKi) > 0.0001 && millis() - lastEepromWrite >= EEPROM_WRITE_INTERVAL) {
         EEPROM.put(EEPROM_KI_ADDR, Ki);
         lastKi = Ki;
         lastEepromWrite = millis();
@@ -395,7 +395,7 @@ void loop() {
       myPID.setCoefficients(Kp, Ki, Kd);
       break;
     case 7:
-      Kd += delta * 0.05;
+      Kd += delta * 0.5;
       if (Kd < 0) Kd = 0;
       if (abs(Kd - lastKd) > 0.0001 && millis() - lastEepromWrite >= EEPROM_WRITE_INTERVAL) {
         EEPROM.put(EEPROM_KD_ADDR, Kd);
