@@ -375,7 +375,7 @@ void loop() {
       threshold_speed = cut_speed * threshold_ratio;
       break;
     case 5:
-      Kp += delta * 0.5;
+      Kp += delta * 0.05;
       if (Kp < 0) Kp = 0;
       if (abs(Kp - lastKp) > 0.01 && millis() - lastEepromWrite >= EEPROM_WRITE_INTERVAL) {
         EEPROM.put(EEPROM_KP_ADDR, Kp);
@@ -710,20 +710,26 @@ void managePlasmaAndTHC() {
   // Déterminer l'état du THC
   bool thc_actif_new = thc_off && enable_pin_low && plasma_pin_low && plasma_stabilise && arc_detecte && thc_etat && !anti_dive_active;
 
-  // Réinitialiser le PID si passage de THC inactif à actif (optionnel, commenté pour éviter un double reset)
+  // Gestion du démarrage et de l'arrêt du PID
   static bool last_thc_actif = false;
   if (thc_actif_new && !last_thc_actif) {
-    myPID.reset(); // Commenté pour éviter un double reset
-    Serial.println("PID réinitialisé (passage THC inactif à actif)");
+    if (thc_actif_new) {
+      myPID.start(); // Démarre le PID lorsque thc_actif devient true
+      myPID.reset(); // Réinitialise les termes I et D au démarrage
+      Serial.println("PID démarré et réinitialisé (passage THC inactif à actif)");
+    } else {
+      myPID.stop();  // Arrête le PID lorsque thc_actif devient false
+      Serial.println("PID arrêté (passage THC actif à inactif)");
+    }
+    last_thc_actif = thc_actif_new;
   }
-  last_thc_actif = thc_actif_new;
   thc_actif = thc_actif_new;
 
   static double smoothedOutput = 0.0;
   const float alpha = 0.5; // Facteur de lissage
-  myPID.compute();
 
   if (thc_actif) {
+    myPID.compute(); // Calcule la sortie uniquement si thc_actif est true
     double error = Setpoint - Input;
     if (abs(error) > 1) { // Zone morte de ±1 V
       smoothedOutput = alpha * Output + (1 - alpha) * smoothedOutput;
@@ -905,7 +911,7 @@ void updateLCD() {
                 break;
             case 5:
                 lcd.setCursor(8, 0);
-                lcd.print(Kp, 1);
+                lcd.print(Kp, 3);
                 break;
             case 6:
                 lcd.setCursor(8, 0);
