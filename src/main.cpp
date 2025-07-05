@@ -34,9 +34,9 @@ const float DEFAULT_SETPOINT = 120.0; // Ajusté à votre cible
 const float DEFAULT_CORRECTION_FACTOR = 1.0;
 const float DEFAULT_CUT_SPEED = 1300.0; // Ajusté à vos logs
 const float DEFAULT_THRESHOLD_RATIO = 0.8; // Ajusté pour 1040 mm/min
-const float DEFAULT_KP = 0.75;  // Gain proportionnel réduit
-const float DEFAULT_KI = 0.001; // Gain intégral réduit
-const float DEFAULT_KD = 0.6;
+const float DEFAULT_KP = 2;  // Gain proportionnel réduit
+const float DEFAULT_KI = 0.0001; // Gain intégral réduit
+const float DEFAULT_KD = 0.3;
 byte initializedFlag=0xAA;
 // Initialize objects
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -260,11 +260,11 @@ void initializeEEPROM() {
   EEPROM.get(EEPROM_THRESHOLD_RATIO_ADDR, threshold_ratio);
   Serial.println("Loaded threshold_ratio: " + String(threshold_ratio, 2));
   EEPROM.get(EEPROM_KP_ADDR, Kp);
-  Serial.println("Loaded Kp: " + String(Kp, 2));
+  Serial.println("Loaded Kp: " + String(Kp, 3));
   EEPROM.get(EEPROM_KI_ADDR, Ki);
-  Serial.println("Loaded Ki: " + String(Ki, 2));
+  Serial.println("Loaded Ki: " + String(Ki, 4));
   EEPROM.get(EEPROM_KD_ADDR, Kd);
-  Serial.println("Loaded Kd: " + String(Kd, 3));
+  Serial.println("Loaded Kd: " + String(Kd, 4));
 }
 
 void loop() {
@@ -385,9 +385,9 @@ void loop() {
       myPID.setCoefficients(Kp, Ki, Kd);
       break;
     case 6:
-      Ki += delta * 0.001;
+      Ki += delta * 0.0001;
       if (Ki < 0) Ki = 0;
-      if (abs(Ki - lastKi) > 0.001 && millis() - lastEepromWrite >= EEPROM_WRITE_INTERVAL) {
+      if (abs(Ki - lastKi) > 0.00001 && millis() - lastEepromWrite >= EEPROM_WRITE_INTERVAL) {
         EEPROM.put(EEPROM_KI_ADDR, Ki);
         lastKi = Ki;
         lastEepromWrite = millis();
@@ -397,7 +397,7 @@ void loop() {
     case 7:
       Kd += delta * 0.05;
       if (Kd < 0) Kd = 0;
-      if (abs(Kd - lastKd) > 0.001 && millis() - lastEepromWrite >= EEPROM_WRITE_INTERVAL) {
+      if (abs(Kd - lastKd) > 0.0001 && millis() - lastEepromWrite >= EEPROM_WRITE_INTERVAL) {
         EEPROM.put(EEPROM_KD_ADDR, Kd);
         lastKd = Kd;
         lastEepromWrite = millis();
@@ -471,9 +471,9 @@ void loop() {
       Serial.print(tension_fast);
       Serial.print(" V | PLASMA_PIN: HIGH | THC_SIG: ");
       Serial.print(thc_off ? "ACTIVE" : "INACTIVE");
-      Serial.print("p: " + String(Kp, 2));
-      Serial.print(" i: " + String(Ki, 2));
-      Serial.println(" d: " + String(Kd, 3));
+      Serial.print("p: " + String(Kp, 3));
+      Serial.print(" i: " + String(Ki, 4));
+      Serial.println(" d: " + String(Kd, 4));
       myPID.debug(&Serial, "myPID", PRINT_INPUT    | // Can include or comment out any of these terms to print
                                               PRINT_OUTPUT   | // in the Serial plotter
                                               PRINT_SETPOINT |
@@ -584,7 +584,7 @@ void readAndFilterTension() {
   const float SEUIL_RETOUR = 3.0;     // Seuil pour désactiver l'anti-dive
   const unsigned long MAX_ANTI_DIVE_DURATION = 2000;
   // Moyenne glissante sur 5 échantillons pour tension_fast
-  const int N_FAST = 15;
+  const int N_FAST = 3;
   static float tension_samples_fast[N_FAST];
   static int index_fast = 0;
   static float sum_fast = 0.0;
@@ -632,7 +632,7 @@ void readAndFilterTension() {
   static float tension_at_activation = 0.0;
   static bool last_anti_dive_state = false;
 
-  if (warmed_up && tension_fast > tension_slow + SEUIL_CHUTE && !anti_dive_active && digitalRead(PLASMA_PIN) == LOW) {
+  if (warmed_up && tension_fast > tension_slow + SEUIL_CHUTE && !anti_dive_active && digitalRead(PLASMA_PIN) == LOW && plasma_stabilise) {
     anti_dive_active = true;
     anti_dive_start_time = millis();
     tension_at_activation = tension_slow;
@@ -733,7 +733,7 @@ void managePlasmaAndTHC() {
     double error = Setpoint - Input;
     if (abs(error) > 1) { // Zone morte de ±1 V
       smoothedOutput = alpha * Output + (1 - alpha) * smoothedOutput;
-      stepper.setSpeed(smoothedOutput);
+      stepper.setSpeed(Output);
       stepper.runSpeed();
     } else {
       smoothedOutput = 0.0;
@@ -785,15 +785,15 @@ void updateLCD() {
                 break;
             case 5:
                 lcd.setCursor(0, 0);
-                lcd.print("PID Kp:     ");
+                lcd.print("PID Kp:      ");
                 break;
             case 6:
                 lcd.setCursor(0, 0);
-                lcd.print("PID Ki:     ");
+                lcd.print("PID Ki:      ");
                 break;
             case 7:
                 lcd.setCursor(0, 0);
-                lcd.print("PID Kd:     ");
+                lcd.print("PID Kd:      ");
                 break;
         }
         lastScreen = currentScreen;
@@ -915,7 +915,7 @@ void updateLCD() {
                 break;
             case 6:
                 lcd.setCursor(8, 0);
-                lcd.print(Ki, 3);
+                lcd.print(Ki, 4);
                 break;
             case 7:
                 lcd.setCursor(8, 0);
