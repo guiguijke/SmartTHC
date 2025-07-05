@@ -30,7 +30,6 @@
 #define EEPROM_INITIALIZED_FLAG 28 // Address for initialization flag
 
 // Default parameter values
-// Default parameter values
 const float DEFAULT_SETPOINT = 120.0; // Ajusté à votre cible
 const float DEFAULT_CORRECTION_FACTOR = 1.0;
 const float DEFAULT_CUT_SPEED = 1300.0; // Ajusté à vos logs
@@ -459,7 +458,7 @@ void loop() {
         else if (!thc_etat) Serial.println("Vitesse torche < seuil");
         else if (anti_dive_active) Serial.println("Anti-dive actif");
         else Serial.println("Condition inconnue");
-      }
+    }
     } else {
       Serial.print("Cut Speed setup: ");
       Serial.print(cut_speed);
@@ -674,13 +673,21 @@ void managePlasmaAndTHC() {
     digitalWrite(SWITCH2, HIGH);
   }
 
+  static bool last_plasma_stabilise = false;
   if (plasma_pin_low && !plasma_stabilise) {
     if (temps_plasma_active == 0) temps_plasma_active = millis();
-    if (millis() - temps_plasma_active >= delai_stabilisation) plasma_stabilise = true;
+    if (millis() - temps_plasma_active >= delai_stabilisation) {
+      plasma_stabilise = true;
+      if (!last_plasma_stabilise) {
+        myPID.reset(); // Réinitialise les termes I et D
+        Serial.println("PID réinitialisé (nouvelle découpe - plasma stabilisé)");
+      }
+    }
   } else if (!plasma_pin_low) {
     temps_plasma_active = 0;
     plasma_stabilise = false;
   }
+  last_plasma_stabilise = plasma_stabilise;
 
   if (!thc_etat && vitesse_torche_filtre >= threshold_speed) {
     thc_etat = true;
@@ -691,10 +698,10 @@ void managePlasmaAndTHC() {
   // Déterminer l'état du THC
   bool thc_actif_new = thc_off && enable_pin_low && plasma_pin_low && plasma_stabilise && arc_detecte && thc_etat && !anti_dive_active;
 
-  // Réinitialiser le PID si passage de THC inactif à actif
+  // Réinitialiser le PID si passage de THC inactif à actif (optionnel, commenté pour éviter un double reset)
   static bool last_thc_actif = false;
   if (thc_actif_new && !last_thc_actif) {
-    myPID.reset(); // Réinitialise les termes I et D
+    myPID.reset(); // Commenté pour éviter un double reset
     Serial.println("PID réinitialisé (passage THC inactif à actif)");
   }
   last_thc_actif = thc_actif_new;
@@ -706,13 +713,10 @@ void managePlasmaAndTHC() {
 
   if (thc_actif) {
     double error = Setpoint - Input;
-    if (abs(error) > 2) { // Zone morte de ±1 V
+    if (abs(error) > 2) { // Zone morte de ±0.5 V
       smoothedOutput = alpha * Output + (1 - alpha) * smoothedOutput;
       stepper.setSpeed(smoothedOutput);
       stepper.runSpeed();
-      // Serial.print("Vitesse commandée (lissée): ");
-      // Serial.print(smoothedOutput);
-      // Serial.println(" pas/s");
     } else {
       smoothedOutput = 0.0;
       Output = 0.0;
