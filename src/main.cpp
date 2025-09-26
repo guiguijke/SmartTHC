@@ -30,6 +30,7 @@
 #define EEPROM_INITIALIZED_FLAG 28 // Address for initialization flag
 
 // Default parameter values
+const float DEFAULT_VOLTAGEDIVIDER = 83.27;
 const float DEFAULT_SETPOINT = 120.0; // Ajusté à votre cible
 const float DEFAULT_CORRECTION_FACTOR = 1.0;
 const float DEFAULT_CUT_SPEED = 1300.0; // Ajusté à vos logs
@@ -579,7 +580,7 @@ void readAndFilterTension() {
 
   // Lecture de la tension brute
   int reading = analogRead(PLASMA_VOLTAGE);
-  float tension_raw = (reading / 16383.0) * 5.0 * 83.27 * tension_correction_factor + plasma_test_V;
+  float tension_raw = (reading / 16383.0) * 5.0 * DEFAULT_VOLTAGEDIVIDER * tension_correction_factor + plasma_test_V;
   const float SEUIL_CHUTE = 5.0;      // Seuil pour activer l'anti-dive
   const float SEUIL_RETOUR = 3.0;     // Seuil pour désactiver l'anti-dive
   const unsigned long MAX_ANTI_DIVE_DURATION = 2000;
