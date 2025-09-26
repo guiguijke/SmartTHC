@@ -206,7 +206,7 @@ void setup() {
   stepper.setAcceleration(5000);  
   myPID.begin(&Input, &Output, &Setpoint, DEFAULT_KP, DEFAULT_KI, DEFAULT_KD);
   myPID.setOutputLimits(-2500, 2500);  // ±2500 pas/s = ±50 mm/s
-  myPID.setWindUpLimits(-50, 50); // Limites de ±300 pas/s pour le terme intégral
+  myPID.setWindUpLimits(-50, 50); // Limites de ±50 pas/s pour le terme intégral
   Ki = DEFAULT_KI;
   Kd = DEFAULT_KD;
   Kp = DEFAULT_KP;
