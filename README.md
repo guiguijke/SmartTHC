@@ -119,7 +119,7 @@ While the code is open source, a premium documentation package is in development
 - Customizing anti-dive and speed thresholds.
 - Integration with various CNC plasma systems.
 
-Stay tuned for availability and pricing details!
+You can purchase it there ! [Premium Documentation](https://shop.aplasma.fr/b/zClKk)
 
 ## Contact
 
