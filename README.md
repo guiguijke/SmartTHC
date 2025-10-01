@@ -98,8 +98,8 @@ Usage will be shared in a paid documentation, this will encourage me to continue
 
 ## Upcoming Features
 
-- **Imperial Units Support**: Future versions will include measurements in inches and other imperial units for broader compatibility.
-- **Enhanced EEPROM Management**: Improved storage and retrieval of user settings.
+- **Imperial Units Support**: DONE 
+- **Enhanced EEPROM Management**: DONE
 - **Advanced Anti-Dive Algorithms**: Further optimization for varying cutting conditions.
 
 ## License
