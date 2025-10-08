@@ -3,6 +3,7 @@
 #include <AccelStepper.h>
 #include <ArduPID.h>
 #include <EEPROM.h>
+#include <limits.h>
 
 // Define pins for Arduino Uno R4 Minima
 #define PLASMA_PIN 12  // Input pin for plasma arc OK signal
@@ -141,6 +142,7 @@ unsigned long lastLoopLogTime = 0;
 const unsigned long LOOP_LOG_INTERVAL = 10000;  // 10 seconds
 unsigned long loopExecutionTimeSum = 0;
 unsigned int loopCount = 0;
+bool just_anti_dive_activated = false;
 
 // Global variables for anti-dive method
 float fast_voltage = 0.0;              // Fast filtered voltage (corrected)
@@ -151,6 +153,24 @@ bool anti_dive_active = false;         // Anti-dive state
 unsigned long anti_dive_start_time = 0;// Anti-dive start time
 const unsigned long ANTI_DIVE_DURATION_MIN = 50; // Min duration (ms) at high speed
 const unsigned long ANTI_DIVE_DURATION_MAX = 300; // Max duration (ms) at low speed
+
+// New for improved anti-dive: position history buffer
+const int POSITION_HISTORY_INTERVAL = 100; // ms between records
+const int POSITION_HISTORY_SIZE = 20; // Enough for ~2 seconds
+struct PosHistory {
+  unsigned long time;
+  long position;
+};
+PosHistory position_history[POSITION_HISTORY_SIZE];
+int position_history_index = 0;
+unsigned long last_position_record_time = 0;
+
+// New constants for lift during anti-dive
+const float STEPS_PER_MM = 1.0 / DEFAULT_DIST_PER_STEP_MM; // e.g., 200 steps/mm
+const float ANTI_DIVE_BONUS_MM = 1.5; // Bonus lift in mm (up)
+const long ANTI_DIVE_BONUS_STEPS = ANTI_DIVE_BONUS_MM * STEPS_PER_MM; // Positive for up
+const float ANTI_DIVE_LIFT_SPEED = 1000.0; // Steps/s for lift (adjust as needed)
+const float ANTI_DIVE_LIFT_ACCEL = 5000.0; // Acceleration for position move
 
 // Global variable for thc_speed_state
 bool thc_speed_state = false; // Speed state for THC
@@ -236,6 +256,12 @@ void setup() {
   threshold_speed = cut_speed * threshold_ratio;
 
   analogReadResolution(14); // ADC at 14 bits
+
+  // New: Initialize position history
+  for (int i = 0; i < POSITION_HISTORY_SIZE; i++) {
+    position_history[i].time = 0;
+    position_history[i].position = 0;
+  }
 }
 
 void initializeEEPROM() {
@@ -279,6 +305,14 @@ void initializeEEPROM() {
 void loop() {
   loopStartTime = micros();
   unsigned long currentTime = millis();
+
+  // New: Record position history every POSITION_HISTORY_INTERVAL ms
+  if (currentTime - last_position_record_time >= POSITION_HISTORY_INTERVAL) {
+    position_history[position_history_index].time = currentTime;
+    position_history[position_history_index].position = stepper.currentPosition();
+    position_history_index = (position_history_index + 1) % POSITION_HISTORY_SIZE;
+    last_position_record_time = currentTime;
+  }
 
   // Button management to change screen
   static bool lastButtonState = HIGH;
@@ -662,6 +696,7 @@ void readAndFilterVoltage() {
 
   if (warmed_up && fast_voltage > slow_voltage + DROP_THRESHOLD && !anti_dive_active && digitalRead(PLASMA_PIN) == LOW && plasma_stabilized) {
     anti_dive_active = true;
+    just_anti_dive_activated = true;  // Set global flag for fresh activation
     anti_dive_start_time = millis();
     voltage_at_activation = slow_voltage;
     if (!last_anti_dive_state) {
@@ -680,6 +715,7 @@ void readAndFilterVoltage() {
     bool time_condition = (millis() - anti_dive_start_time >= MAX_ANTI_DIVE_DURATION);
     if (voltage_condition || time_condition) {
       anti_dive_active = false;
+      just_anti_dive_activated = false;  // Reset global flag
       if (last_anti_dive_state) {
         if (voltage_condition) {
           Serial.println("Anti-dive OFF | Voltage returned to normal");
@@ -756,7 +792,33 @@ void managePlasmaAndTHC() {
   static double smoothedOutput = 0.0;
   const float alpha = 0.5; // Smoothing factor
 
-  if (thc_active) {
+  if (anti_dive_active) {
+    if (just_anti_dive_activated) {
+      // Compute target position from 1 sec ago + bonus
+      unsigned long target_time = currentTime - 1000;
+      long closest_pos = stepper.currentPosition();
+      unsigned long closest_diff = ULONG_MAX;
+      for (int i = 0; i < POSITION_HISTORY_SIZE; i++) {
+        unsigned long h_time = position_history[i].time;
+        if (h_time == 0) continue; // Not initialized
+        unsigned long diff = abs((long)target_time - (long)h_time);
+        if (diff < closest_diff) {
+          closest_diff = diff;
+          closest_pos = position_history[i].position;
+        }
+      }
+      long target_pos = closest_pos + ANTI_DIVE_BONUS_STEPS; // Positive for up
+      stepper.setMaxSpeed(ANTI_DIVE_LIFT_SPEED);
+      stepper.setAcceleration(ANTI_DIVE_LIFT_ACCEL);
+      stepper.moveTo(target_pos);
+      Serial.print("Anti-dive lift to position: ");
+      Serial.print(target_pos);
+      Serial.println(" steps");
+      just_anti_dive_activated = false;  // Reset after handling
+    }
+    // Execute position move during anti-dive
+    stepper.run();
+  } else if (thc_active) {
     myPID.compute(); // Compute output only if thc_active is true
     double error = Setpoint - Input;
     if (abs(error) > 1) { // Dead zone of ±1 V
