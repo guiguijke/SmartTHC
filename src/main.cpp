@@ -31,33 +31,45 @@
 #define EEPROM_INITIALIZED_FLAG 28 // Address for initialization flag
 
 // Default parameter values
-const float DEFAULT_VOLTAGEDIVIDER = 83.27;
 const float DEFAULT_SETPOINT = 120.0;
 const float DEFAULT_CORRECTION_FACTOR = 1.0;
 const float DEFAULT_THRESHOLD_RATIO = 0.8;
 const float DEFAULT_KP = 10;
 const float DEFAULT_KI = 2.5;
 const float DEFAULT_KD = 2;
-const float DEFAULT_DIST_PER_STEP_MM = 0.005; // Distance per step in mm
+
+#ifndef STEPS_PER_MM_X
+#define STEPS_PER_MM_X 200.0  // Default if not defined in platformio.ini
+#endif
+#ifndef STEPS_PER_MM_Y
+#define STEPS_PER_MM_Y 200.0
+#endif
+#ifndef STEPS_PER_MM_Z
+#define STEPS_PER_MM_Z 200.0
+#endif
+
 const float MM_PER_INCH = 25.4;
 
 #if USE_IMPERIAL
 const float DEFAULT_CUT_SPEED = 51.0; // Approx 1300 mm/min in IPM
 const float MAX_CUT_SPEED = 400.0;
 const float CUT_SPEED_ADJUST_STEP = 5.0;
-const float DIST_PER_STEP_X = DEFAULT_DIST_PER_STEP_MM / MM_PER_INCH;
-const float DIST_PER_STEP_Y = DEFAULT_DIST_PER_STEP_MM / MM_PER_INCH;
+const float DIST_PER_STEP_X = (1.0 / STEPS_PER_MM_X) / MM_PER_INCH;  // inch/step
+const float DIST_PER_STEP_Y = (1.0 / STEPS_PER_MM_Y) / MM_PER_INCH;
 const char* SPEED_UNIT = "IPM";
 const char* SPEED_UNIT_LONG = "Inches/min";
 #else
 const float DEFAULT_CUT_SPEED = 1300.0;
 const float MAX_CUT_SPEED = 10000.0;
 const float CUT_SPEED_ADJUST_STEP = 100.0;
-const float DIST_PER_STEP_X = DEFAULT_DIST_PER_STEP_MM;
-const float DIST_PER_STEP_Y = DEFAULT_DIST_PER_STEP_MM;
+const float DIST_PER_STEP_X = 1.0 / STEPS_PER_MM_X;  // mm/step
+const float DIST_PER_STEP_Y = 1.0 / STEPS_PER_MM_Y;
 const char* SPEED_UNIT = "mm/min";
 const char* SPEED_UNIT_LONG = "mm/min";
 #endif
+
+// For Z axis (anti-dive), always in mm
+const float DIST_PER_STEP_Z = 1.0 / STEPS_PER_MM_Z;  // mm/step (added for consistency with X/Y)
 
 byte initializedFlag = 0xAA;
 
@@ -166,9 +178,7 @@ int position_history_index = 0;
 unsigned long last_position_record_time = 0;
 
 // New constants for lift during anti-dive
-const float STEPS_PER_MM = 1.0 / DEFAULT_DIST_PER_STEP_MM; // e.g., 200 steps/mm
-const float ANTI_DIVE_BONUS_MM = 1.5; // Bonus lift in mm (up)
-const long ANTI_DIVE_BONUS_STEPS = ANTI_DIVE_BONUS_MM * STEPS_PER_MM; // Positive for up
+const long ANTI_DIVE_BONUS_STEPS = ANTI_DIVE_BONUS_MM * STEPS_PER_MM_Z; // Positive for up (using STEPS_PER_MM_Z)
 const float ANTI_DIVE_LIFT_SPEED = 1000.0; // Steps/s for lift (adjust as needed)
 const float ANTI_DIVE_LIFT_ACCEL = 5000.0; // Acceleration for position move
 
