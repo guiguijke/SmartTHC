@@ -31,11 +31,11 @@
 #define EEPROM_INITIALIZED_FLAG 28 // Address for initialization flag
 
 // Default parameter values
-const float DEFAULT_SETPOINT = 120.0;
+const float DEFAULT_SETPOINT = 110.0;
 const float DEFAULT_CORRECTION_FACTOR = 1.0;
 const float DEFAULT_THRESHOLD_RATIO = 0.8;
-const float DEFAULT_KP = 10;
-const float DEFAULT_KI = 2.5;
+const float DEFAULT_KP = 30;
+const float DEFAULT_KI = 7.5;
 const float DEFAULT_KD = 2;
 
 #ifndef STEPS_PER_MM_X
@@ -192,6 +192,13 @@ const unsigned long EEPROM_WRITE_INTERVAL = 1000;
 // Temporary variable for voltage correction factor adjustment
 float temp_voltage_correction_factor = DEFAULT_CORRECTION_FACTOR;
 
+// === OVERSAMPLING NON-BLOQUANT pour PID ultra-stable ===
+#define OVERSAMPLE_TARGET 10  // 10 samples ~10ms @1kHz
+static float oversample_sum = 0.0;
+static uint8_t oversample_count = 0;
+static float last_pid_input = 0.0;  // Dernière moyenne pour low-pass
+const float INPUT_ALPHA = 0.7;      // Low-pass fort sur moyenne
+
 // Function declarations
 void initializeEEPROM();
 void calculateSpeed();
@@ -244,7 +251,7 @@ void setup() {
   stepper.setAcceleration(5000);  
   myPID.begin(&Input, &Output, &Setpoint, DEFAULT_KP, DEFAULT_KI, DEFAULT_KD);
   myPID.setOutputLimits(-2500, 2500);  // ±2500 steps/s = ±50 mm/s
-  myPID.setWindUpLimits(-50, 50); // Limits of ±50 steps/s for integral term
+  myPID.setWindUpLimits(-100, 100); // Limits of ±100 steps/s for integral term
   Ki = DEFAULT_KI;
   Kd = DEFAULT_KD;
   Kp = DEFAULT_KP;
@@ -566,7 +573,7 @@ void loop() {
 
   static unsigned long lastPidTime = 0;
   unsigned long currentMicros = micros();
-  if (currentMicros - lastPidTime >= 333) { // 333 us = 3 kHz
+  if (currentMicros - lastPidTime >= 1000) { // 333 us = 3 kHz
     readAndFilterVoltage();  
     managePlasmaAndTHC();
     lastPidTime = currentMicros;
@@ -636,111 +643,97 @@ void calculateSpeed() {
 }
 
 void readAndFilterVoltage() {
+  // === WARM-UP ADC (1s) ===
   static unsigned long start_time = 0;
   static bool warmed_up = false;
-  if (start_time == 0) {
-    start_time = millis();
-  }
-  if (millis() - start_time >= 1000) {  // 1 second warm-up
-    warmed_up = true;
-  }
+  if (start_time == 0) start_time = millis();
+  if (millis() - start_time >= 1000) warmed_up = true;
 
-  // Read uncorrected raw voltage
+  // === 1x ADC NON-BLOQUANT : Accumule pour avg ultra-stable ===
   int reading = analogRead(PLASMA_VOLTAGE);
-  float uncorrected_raw = (reading / 16383.0) * 5.0 * DEFAULT_VOLTAGEDIVIDER + test_plasma_voltage;
+  float raw = (reading / 16383.0f) * 5.0f * DEFAULT_VOLTAGEDIVIDER + test_plasma_voltage;
 
-  const float DROP_THRESHOLD = 5.0;      // Threshold to activate anti-dive
-  const float RETURN_THRESHOLD = 3.0;     // Threshold to deactivate anti-dive
-  const unsigned long MAX_ANTI_DIVE_DURATION = 2000;
+  // === FAST : Oversample 10x + Low-pass (PID input) ===
+  oversample_sum += raw;
+  oversample_count++;
+  if (oversample_count >= OVERSAMPLE_TARGET) {
+    float avg_raw = oversample_sum / OVERSAMPLE_TARGET;
+    const float INPUT_ALPHA = 0.7f;  // **Fort** : ±0.3V max
+    uncorrected_fast = INPUT_ALPHA * avg_raw + (1.0f - INPUT_ALPHA) * last_pid_input;
+    last_pid_input = uncorrected_fast;
+    fast_voltage = uncorrected_fast * voltage_correction_factor;
+    Input = fast_voltage;  // PID prêt !
 
-  // Moving average over 3 samples for uncorrected_fast
-  const int N_FAST = 3;
-  static float voltage_samples_fast[N_FAST];
-  static int index_fast = 0;
-  static float sum_fast = 0.0;
-  static bool initialized_fast = false;
-
-  if (!initialized_fast) {
-    for (int i = 0; i < N_FAST; i++) {
-      voltage_samples_fast[i] = uncorrected_raw;
-    }
-    sum_fast = uncorrected_raw * N_FAST;
-    initialized_fast = true;
-  } else {
-    sum_fast -= voltage_samples_fast[index_fast];
-    voltage_samples_fast[index_fast] = uncorrected_raw;
-    sum_fast += uncorrected_raw;
-    index_fast = (index_fast + 1) % N_FAST;
+    // Reset cycle
+    oversample_sum = 0.0f;
+    oversample_count = 0;
   }
-  uncorrected_fast = sum_fast / N_FAST;
-  fast_voltage = uncorrected_fast * voltage_correction_factor;
 
-  // Moving average over 100 samples for uncorrected_slow
-  const int N_SLOW = 100;
-  static float voltage_samples_slow[N_SLOW];
-  static int index_slow = 0;
-  static float sum_slow = 0.0;
-  static bool initialized_slow = false;
+  // === SLOW : Moyenne 200 + Low-pass (anti-dive ref) ===
+  const int N_SLOW = 200;
+  static float slow_samples[N_SLOW];
+  static int slow_idx = 0;
+  static float slow_sum = 0.0f;
+  static bool slow_init = false;
+  static float slow_lp = 0.0f;
+  const float ALPHA_SLOW = 0.8f;
 
-  if (!initialized_slow) {
-    for (int i = 0; i < N_SLOW; i++) {
-      voltage_samples_slow[i] = uncorrected_raw;
-    }
-    sum_slow = uncorrected_raw * N_SLOW;
-    initialized_slow = true;
-  } else {
-    sum_slow -= voltage_samples_slow[index_slow];
-    voltage_samples_slow[index_slow] = uncorrected_raw;
-    sum_slow += uncorrected_raw;
-    index_slow = (index_slow + 1) % N_SLOW;
+  if (!slow_init) {
+    for (int i = 0; i < N_SLOW; i++) slow_samples[i] = raw;
+    slow_sum = raw * N_SLOW;
+    slow_init = true;
   }
-  uncorrected_slow = sum_slow / N_SLOW;
-  slow_voltage = uncorrected_slow * voltage_correction_factor;
+  slow_sum -= slow_samples[slow_idx];
+  slow_samples[slow_idx] = raw;
+  slow_sum += raw;
+  slow_idx = (slow_idx + 1) % N_SLOW;
 
-  // Use fast_voltage for PID
-  Input = fast_voltage;
+  float slow_raw_avg = slow_sum / N_SLOW;
+  uncorrected_slow = slow_raw_avg;
+  slow_voltage = ALPHA_SLOW * (slow_raw_avg * voltage_correction_factor) + 
+                 (1.0f - ALPHA_SLOW) * slow_lp;
+  slow_lp = slow_voltage;
 
-  // Anti-dive logic with fast_voltage
-  static float voltage_at_activation = 0.0;
+  // === ANTI-DIVE : SÉCURISÉ → UNIQUEMENT si THC ACTIVE ! ===
+  static float voltage_at_activation = 0.0f;
+  const float DROP_THRESHOLD = 5.0f;
+  const float RETURN_THRESHOLD = 3.0f;
+  const unsigned long MAX_ANTI_DIVE_DURATION = 1000;  // 1s max
   static bool last_anti_dive_state = false;
 
-  if (warmed_up && fast_voltage > slow_voltage + DROP_THRESHOLD && !anti_dive_active && digitalRead(PLASMA_PIN) == LOW && plasma_stabilized) {
+  // **FIX CRITIQUE** : && thc_active (THC_SIG ACTIVE)
+  if (warmed_up && 
+      fast_voltage > slow_voltage + DROP_THRESHOLD && 
+      !anti_dive_active && 
+      digitalRead(PLASMA_PIN) == LOW && 
+      plasma_stabilized && 
+      thc_active) {  // ← **SÉCURITÉ CAM**
+    
     anti_dive_active = true;
-    just_anti_dive_activated = true;  // Set global flag for fresh activation
+    just_anti_dive_activated = true;
     anti_dive_start_time = millis();
     voltage_at_activation = slow_voltage;
-    if (!last_anti_dive_state) {
-      Serial.print("Anti-dive ON | Cutting voltage: ");
-      Serial.print(fast_voltage);
-      Serial.print(" V | Slow voltage: ");
-      Serial.print(slow_voltage);
-      Serial.print(" V | Saved voltage: ");
-      Serial.print(voltage_at_activation);
-      Serial.println(" V");
-    }
+    
+    Serial.print("**Anti-dive ON (THC ACTIVE)** | Cut: ");
+    Serial.print(fast_voltage, 1);
+    Serial.print("V | Slow: ");
+    Serial.print(slow_voltage, 1);
+    Serial.print("V | Saved: ");
+    Serial.println(voltage_at_activation, 1);
   }
 
   if (anti_dive_active) {
-    bool voltage_condition = (fast_voltage <= voltage_at_activation + RETURN_THRESHOLD);
-    bool time_condition = (millis() - anti_dive_start_time >= MAX_ANTI_DIVE_DURATION);
-    if (voltage_condition || time_condition) {
+    bool deactivate = (fast_voltage <= voltage_at_activation + RETURN_THRESHOLD) ||
+                      (millis() - anti_dive_start_time >= MAX_ANTI_DIVE_DURATION);
+    if (deactivate) {
       anti_dive_active = false;
-      just_anti_dive_activated = false;  // Reset global flag
-      if (last_anti_dive_state) {
-        if (voltage_condition) {
-          Serial.println("Anti-dive OFF | Voltage returned to normal");
-        } else {
-          Serial.println("Anti-dive OFF | Timeout reached");
-        }
-        Serial.print("Cutting voltage: ");
-        Serial.print(fast_voltage);
-        Serial.print(" V | Slow voltage: ");
-        Serial.print(slow_voltage);
-        Serial.println(" V");
-      }
+      just_anti_dive_activated = false;
+      Serial.print("**Anti-dive OFF** | Cut: ");
+      Serial.print(fast_voltage, 1);
+      Serial.print("V | Slow: ");
+      Serial.println(slow_voltage, 1);
     }
   }
-
   last_anti_dive_state = anti_dive_active;
 }
 
