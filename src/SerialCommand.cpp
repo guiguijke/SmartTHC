@@ -11,7 +11,8 @@
 #include <ArduPID.h>
 
 SerialCommand::SerialCommand()
-    : lastLogTime(0)
+    : debugEnabled(false)
+    , lastLogTime(0)
     , lastLoopLogTime(0)
 {
 }
@@ -50,13 +51,18 @@ void SerialCommand::processCommand(String& command, EEPROMManager* eeprom,
     else if (command == "STATUS") {
         printStatus(thc, speed);
     }
+    else if (command == "DEBUG") {
+        debugEnabled = !debugEnabled;
+        Serial.print("Debug logging: ");
+        Serial.println(debugEnabled ? "ON" : "OFF");
+    }
     else if (command == "HELP") {
-        Serial.println("Commands: RESET_EEPROM, STATUS, HELP");
+        Serial.println("Commands: RESET_EEPROM, STATUS, DEBUG, HELP");
     }
 }
 
 void SerialCommand::logStatus(unsigned long currentTime, THCController* thc, SpeedMonitor* speed) {
-    if (currentTime - lastLogTime < LOG_INTERVAL) {
+    if (!debugEnabled || currentTime - lastLogTime < LOG_INTERVAL) {
         return;
     }
 
@@ -126,7 +132,7 @@ void SerialCommand::logStatus(unsigned long currentTime, THCController* thc, Spe
 }
 
 void SerialCommand::logLoopStats(unsigned long currentTime, unsigned long avgTime, float frequency) {
-    if (currentTime - lastLoopLogTime >= LOOP_LOG_INTERVAL) {
+    if (debugEnabled && currentTime - lastLoopLogTime >= LOOP_LOG_INTERVAL) {
         Serial.print("Average execution time: ");
         Serial.print(avgTime);
         Serial.print(" us | Frequency: ");

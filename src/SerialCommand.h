@@ -29,6 +29,7 @@ public:
     void logLoopStats(unsigned long currentTime, unsigned long avgTime, float frequency);
 
 private:
+    bool debugEnabled;
     unsigned long lastLogTime;
     unsigned long lastLoopLogTime;
 
