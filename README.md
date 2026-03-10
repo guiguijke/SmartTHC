@@ -2,133 +2,110 @@
 
 ![Smart THC Logo](https://github.com/guiguijke/SmartTHC/blob/main/SmartTHC_LOGO_PNG.png)
 
-Welcome to **Smart THC**, an open-source Arduino-based Torch Height Controller (THC) designed for CNC plasma cutting machines. Smart THC ensures precise control of the torch height by adjusting it dynamically based on the plasma arc voltage, delivering clean and accurate cuts. With a user-friendly LCD interface, real-time parameter adjustments via an encoder, and robust PID control, this project is ideal for hobbyists and professionals looking to enhance their plasma cutting setups.
+**Smart THC** is an open-source Arduino-based Torch Height Controller (THC) for CNC plasma cutting machines. It dynamically adjusts torch height based on plasma arc voltage using PID control, delivering clean and accurate cuts. Features a user-friendly LCD interface, real-time parameter tuning via rotary encoder, and robust protection mechanisms.
 
-## Project Overview
-
-Smart THC (Torch Height Controller) automates the vertical positioning of a plasma cutting torch to maintain optimal cutting height. It uses an Arduino microcontroller to monitor the plasma arc voltage, control a stepper motor for Z-axis movement, and provide real-time feedback on an LCD display. Key features include:
-
-- **Dynamic Height Adjustment**: Uses a PID controller to maintain a target arc voltage, ensuring consistent cut quality.
-- **Stepper Motor Control**: Precisely drives the Z-axis stepper motor for smooth torch movement.
-- **Interactive Interface**: A 16x2 LCD with custom characters and an encoder for navigating menus and adjusting settings like target voltage, PID coefficients, and cutting speed.
-- **Anti-Dive Protection**: Prevents the torch from diving too low during rapid voltage changes, improving cut reliability.
-- **EEPROM Storage**: Saves user settings (e.g., PID parameters, target voltage) for persistence across power cycles.
-- **Future Imperial Units Support**: Upcoming version will include measurements in inches and other imperial units.
-
-Smart THC is licensed under the [GNU General Public License v3 (GPL v3)](#license), allowing you to modify and share it freely, provided derivative works are also licensed under GPL v3. A premium documentation package with detailed guides and advanced tuning tips is planned for release soon.
+Licensed under the [GNU General Public License v3 (GPL v3)](#license).
 
 ## Features
 
-- **Precise Torch Height Control**: Maintains optimal cutting height using PID-based arc voltage regulation.
-- **Real-time Monitoring**: Displays arc voltage, torch speed, and system status on a 16x2 LCD.
-- **User-Friendly Configuration**: Adjust settings like target voltage, PID gains (Kp, Ki, Kd), cutting speed, and voltage correction factor via an encoder.
-- **Anti-Dive Mechanism**: Detects rapid voltage drops to prevent torch diving, with adaptive timing based on cutting speed.
-- **Speed Calculation**: Measures torch travel speed in mm/min using X/Y-axis step counts, with filtering for accuracy.
-- **Persistent Settings**: Stores user configurations in EEPROM for seamless operation.
-- **Extensible Design**: Easily adaptable for different plasma cutters, sensors, or CNC setups.
+- **PID-based height control** running at 1kHz for responsive torch adjustment
+- **Anti-dive protection** with adaptive timing — prevents torch diving on corners and small features
+- **THC_OFF re-stabilization** (300ms delay) — prevents torch dive on small oblong holes
+- **Watchdog Timer (WDT)** — auto-reboot on EMI-induced hangs in plasma environment
+- **8-screen LCD menu** with rotary encoder navigation (setpoint, PID tuning, speed, correction factor)
+- **Real-time monitoring** — arc voltage, torch speed, and system status on 16x2 LCD
+- **Dual voltage filtering** — fast EMA for PID input + slow 200-sample average for anti-dive reference
+- **Speed monitoring** via X/Y step pulse interrupts with threshold-based activation
+- **Persistent EEPROM storage** with deferred writes (1s batching) to minimize flash wear
+- **Metric / Imperial support** (compile-time configurable)
+- **Serial debug interface** at 115200 baud with live status logging
+
+## Architecture
+
+Modular design — each subsystem is a separate class, orchestrated by `main.cpp`:
+
+| Module | Role |
+|---|---|
+| **THCController** | PID control, voltage ADC reading, anti-dive protection, stepper motor commands |
+| **DisplayManager** | 16x2 I2C LCD with 8 screens, selective redraw, blinking anti-dive message |
+| **EncoderManager** | KY-040 rotary encoder with state machine debouncing |
+| **SpeedMonitor** | Torch speed from X/Y step interrupts, position history for anti-dive |
+| **EEPROMManager** | Persistent storage of 7 parameters with deferred writes and validation |
+| **SerialCommand** | Debug serial interface, status logging, `RESET_EEPROM` command |
+| **Config.h** | All pin definitions, timing intervals, defaults — zero magic numbers |
 
 ## Hardware Requirements
 
-To build and run Smart THC, you'll need:
-
-- **Arduino Board**: Arduino Uno R4 Minima (or wifi).
-- **LCD Display**: 16x2 LCD with I2C interface.
-- **Stepper Motor and Driver**: 4-wire stepper motor with a driver (e.g., ULN2003 or A4988) for Z-axis movement.
-- **Rotary Encoder**: For menu navigation and parameter adjustment (with CLK, DT, and SW pins).
-- **Plasma Arc Sensor**: Voltage divider or ADC input to measure plasma arc voltage (connected to A0).
-- **CNC Stepper Signals**: X/Y-axis step signals (connected to interrupt pins for speed calculation).
-- **1 Switch**: For enabling/disabling THC and detecting plasma arc status.
-- **Jumper Wires and Breadboard**: For prototyping and connections.
-
-## Software Requirements
-
-Smart THC is developed using **Visual Studio Code** with the **PlatformIO** extension, which we recommend for an efficient workflow. The project depends on the following Arduino libraries:
-
-- **LiquidCrystal_I2C.h**: Controls the I2C LCD display for real-time feedback.
-- **AccelStepper.h**: Manages the Z-axis stepper motor with acceleration support.
-- **ArduPID.h**: Implements the PID controller for arc voltage regulation.
-
-You'll also need:
-- **Visual Studio Code**: Latest version.
-- **PlatformIO Extension**: For project management, compilation, and uploading.
-- **Arduino Framework**: Configured via PlatformIO.
+- **Arduino Uno R4 Minima** (or WiFi variant)
+- **16x2 LCD** with I2C interface (default address: 0x27)
+- **Stepper motor + driver** (e.g., A4988) for Z-axis torch movement
+- **KY-040 rotary encoder** for menu navigation
+- **Plasma arc voltage input** via voltage divider on A0
+- **X/Y step signals** from CNC controller (interrupt pins 2, 3)
+- **THC control signals**: plasma arc OK (pin 12), THC enable (pin 10), THC off (pin 11)
 
 ## Installation
 
-1. **Clone the Repository**:
+1. **Clone the repository**:
    ```bash
-   git clone https://github.com/your-username/Smart-THC.git
+   git clone https://github.com/guiguijke/SmartTHC.git
    ```
-   Replace `your-username` with your GitHub username.
 
-2. **Set Up PlatformIO**:
-   - Install [Visual Studio Code](https://code.visualstudio.com/).
-   - Install the [PlatformIO IDE extension](https://platformio.org/install/ide?install=vscode).
-   - Open the `Smart-THC` folder in VS Code.
-   - PlatformIO will detect the `platformio.ini` file and install dependencies.
+2. **Open in VS Code** with the [PlatformIO extension](https://platformio.org/install/ide?install=vscode). PlatformIO will auto-detect `platformio.ini` and install dependencies.
 
-3. **Install Library Dependencies**:
-   - The required libraries (`LiquidCrystal_I2C`, `AccelStepper`, `ArduPID`) are specified in `platformio.ini`.
-   - PlatformIO will download them automatically during the build process.
-   - To manually install, use:
-     ```bash
-     pio lib install "LiquidCrystal_I2C"
-     pio lib install "AccelStepper"
-     pio lib install "ArduPID"
-     ```
+3. **Build and upload**:
+   ```bash
+   # Build (metric units, default)
+   pio build -e uno_r4_minima
 
-4. **Configure Hardware Settings**:
-   - Verify the I2C address of your LCD (default: 0x27) in `src/main.cpp`.
-   - Check pin assignments for the stepper motor, encoder, and plasma arc input (defined in the code).
-   - Ensure your Arduino board is set in `platformio.ini` (e.g., `board = uno_r4_minima`).
+   # Build with imperial units
+   pio build -e uno_r4_minima_imperial
 
-5. **Build and Upload**:
-   - Connect your Arduino board via USB.
-   - In VS Code, open the PlatformIO sidebar (alien icon).
-   - Click `Build` to compile the code.
-   - Click `Upload` to flash the code to your Arduino.
+   # Upload to board
+   pio upload -e uno_r4_minima
 
-6. **Connect the Hardware**:
-   - Wire the LCD, stepper motor, encoder, and sensors according to the pin definitions in `src/main.cpp`.
-   - Ensure the plasma arc voltage input is properly scaled (e.g., via a voltage divider) to avoid damaging the Arduino.
+   # Serial monitor
+   pio device monitor --baud 115200
+   ```
 
-## Usage
+4. **Configure** pin assignments and mechanical constants in `src/Config.h` and `platformio.ini` build flags.
 
-Usage will be shared in a paid documentation, this will encourage me to continue developpment!
+## Configuration
 
-## Upcoming Features
+All constants are centralized in `src/Config.h`. Key parameters:
 
-- **Imperial Units Support**: DONE 
-- **Enhanced EEPROM Management**: DONE
-- **Advanced Anti-Dive Algorithms**: Further optimization for varying cutting conditions.
+| Parameter | Default | Description |
+|---|---|---|
+| `STABILIZATION_DELAY` | 750ms | Plasma stabilization before PID activates |
+| `THC_ON_RESTAB_DELAY` | 300ms | Re-stabilization after THC_OFF → THC_ON |
+| `DEFAULT_SETPOINT` | 110V | Target arc voltage |
+| `DEFAULT_KP / KI / KD` | 30 / 7.5 / 2.0 | PID coefficients |
+| `DROP_THRESHOLD` | 5V | Anti-dive activation threshold |
+| `STEPPER_DEADZONE` | 1V | PID dead zone |
 
-## License
+Mechanical constants (`STEPS_PER_MM_X/Y/Z`, `DEFAULT_VOLTAGEDIVIDER`) are set as build flags in `platformio.ini`.
 
-Smart THC is licensed under the [GNU General Public License v3 (GPL v3)](LICENSE). You are free to use, modify, and distribute the code, provided all derivative works are also licensed under GPL v3. The included libraries have their own licenses, which are respected:
+## Dependencies
 
-- **LiquidCrystal_I2C**: Often under CC BY-SA 3.0 or similar (check the library version).
-- **AccelStepper**: GNU General Public License v3 (GPL v3).
-- **ArduPID**: MIT License.
-
-See the [LICENSE](LICENSE) file and library documentation for details.
+Managed automatically by PlatformIO:
+- [LiquidCrystal_I2C](https://github.com/johnrickman/LiquidCrystal_I2C) ^1.1.4
+- [AccelStepper](https://www.airspayce.com/mikem/arduino/AccelStepper/) ^1.64
+- [ArduPID](https://github.com/PowerBroker2/ArduPID) ^0.2.1
 
 ## Premium Documentation
 
-While the code is open source, a premium documentation package is in development, including:
-- Step-by-step hardware setup guides.
-- Customizing anti-dive and speed thresholds.
-- Integration with various CNC plasma systems.
+While the code is open source, a premium documentation package is available with step-by-step hardware setup guides, tuning tips, and CNC integration guides.
 
-You can purchase it there ! [Premium Documentation](https://shop.aplasma.fr/b/zClKk)
+[Purchase Premium Documentation](https://shop.aplasma.fr/b/zClKk)
+
+## License
+
+Smart THC is licensed under the [GNU General Public License v3 (GPL v3)](LICENSE). You are free to use, modify, and distribute the code, provided all derivative works are also licensed under GPL v3.
 
 ## Contact
 
-Questions or feedback? Open an issue on [GitHub Issues](https://github.com/your-username/Smart-THC/issues) or join my [Discord](https://discord.gg/Z9JJdjPDb4) server to talk to me directly.
-
-Happy cutting with Smart THC!
+Questions or feedback? Open an issue on [GitHub Issues](https://github.com/guiguijke/SmartTHC/issues) or join the [Discord](https://discord.gg/Z9JJdjPDb4) server.
 
 ---
 
-**Acknowledgments**  
-- Thanks to the authors of `LiquidCrystal_I2C`, `AccelStepper`, and `ArduPID` for their excellent libraries.
-- Gratitude to the Arduino, PlatformIO, and CNC plasma cutting communities for their inspiration and support.
+**Acknowledgments**: Thanks to the authors of `LiquidCrystal_I2C`, `AccelStepper`, and `ArduPID` for their excellent libraries.
