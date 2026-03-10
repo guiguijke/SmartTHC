@@ -6,6 +6,7 @@
  */
 
 #include <Arduino.h>
+#include <WDT.h>
 #include "Config.h"
 #include "EncoderManager.h"
 #include "SpeedMonitor.h"
@@ -86,6 +87,9 @@ void setup() {
     thc.begin();
     display.begin();
     
+    // Watchdog Timer - reboot auto si le MCU se bloque (EMI plasma)
+    WDT.begin(WDT_TIMEOUT_128);
+
     Serial.println("SmartTHC - Ready!");
 }
 
@@ -94,6 +98,7 @@ void setup() {
 // ============================================================================
 
 void loop() {
+    WDT.refresh();
     loopStartTime = micros();
     unsigned long currentTime = millis();
     

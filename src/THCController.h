@@ -119,6 +119,11 @@ private:
     // État THC
     bool thcActive;
     bool lastThcActive;
+
+    // Re-stabilisation après THC_OFF → THC_ON
+    bool prevThcOff;                    // état précédent de thcOff
+    bool thcOnStabilized;               // true quand le délai de re-stab est écoulé
+    unsigned long thcOnTransitionTime;   // timestamp de la transition
     
     // Anti-dive
     bool antiDiveActive;

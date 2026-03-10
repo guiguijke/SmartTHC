@@ -35,6 +35,9 @@ THCController::THCController()
     , plasmaActiveTime(0)
     , thcActive(false)
     , lastThcActive(false)
+    , prevThcOff(false)
+    , thcOnStabilized(true)
+    , thcOnTransitionTime(0)
     , antiDiveActive(false)
     , antiDiveStartTime(0)
     , voltageAtActivation(0.0f)
@@ -218,10 +221,26 @@ void THCController::updatePlasmaState(unsigned long currentTime) {
 }
 
 void THCController::updateTHCState(unsigned long currentTime) {
-    // Déterminer le nouvel état THC (sans anti-dive ici, géré dans controlMotor)
-    bool thcActiveNew = thcOff && enablePinLow && plasmaPinLow && 
-                        plasmaStabilized && arcDetected;
-    
+    // Détecter la transition THC_OFF → THC_ON (thcOff passe de false à true)
+    if (thcOff && !prevThcOff) {
+        // THC vient d'être ré-autorisé : imposer un délai de re-stabilisation
+        thcOnStabilized = false;
+        thcOnTransitionTime = currentTime;
+    }
+    if (!thcOff) {
+        thcOnStabilized = false;
+    }
+    // Vérifier si le délai de re-stabilisation est écoulé
+    if (!thcOnStabilized && thcOff &&
+        (currentTime - thcOnTransitionTime >= THC_ON_RESTAB_DELAY)) {
+        thcOnStabilized = true;
+    }
+    prevThcOff = thcOff;
+
+    // Déterminer le nouvel état THC (thcOnStabilized empêche l'activation immédiate)
+    bool thcActiveNew = thcOff && thcOnStabilized && enablePinLow &&
+                        plasmaPinLow && plasmaStabilized && arcDetected;
+
     // Gestion du démarrage/arrêt du PID
     if (thcActiveNew != lastThcActive) {
         if (thcActiveNew) {
@@ -232,7 +251,7 @@ void THCController::updateTHCState(unsigned long currentTime) {
         }
         lastThcActive = thcActiveNew;
     }
-    
+
     thcActive = thcActiveNew;
 }
 

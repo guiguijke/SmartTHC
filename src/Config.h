@@ -122,7 +122,8 @@ const unsigned long SPEED_INTERVAL = 50;            // ms - calcul vitesse
 const unsigned long LOG_INTERVAL = 150;             // ms - logs série
 const unsigned long LOOP_LOG_INTERVAL = 10000;      // ms - stats boucle
 const unsigned long EEPROM_WRITE_INTERVAL = 1000;   // ms - sauvegarde EEPROM
-const unsigned long STABILIZATION_DELAY = 500;      // ms - délai stabilisation plasma
+const unsigned long STABILIZATION_DELAY = 750;      // ms - délai stabilisation plasma
+const unsigned long THC_ON_RESTAB_DELAY = 300;      // ms - délai re-stabilisation après THC_OFF → THC_ON
 const unsigned long STEP_TIMEOUT = 500;             // ms - timeout pas
 const unsigned long DEBOUNCE_US = 3;                // µs - anti-rebond interruptions
 

@@ -180,8 +180,10 @@ void DisplayManager::drawScreen0(THCController* thc, SpeedMonitor* speedMonitor)
         lcd.setCursor(0, 0);
         lcd.print("Act:");
         lcd.setCursor(4, 0);
-        lcd.print(actualVoltage, 1);
-        lcd.print("V");
+        char vBuf[8];
+        dtostrf(actualVoltage, 5, 1, vBuf);  // Largeur fixe 5 chars : "  9.4" ou "123.4"
+        lcd.print(vBuf);
+        lcd.print("V ");  // V + espace pour effacer un éventuel résidu
         lastActualVoltage = actualVoltage;
     }
     
@@ -214,7 +216,9 @@ void DisplayManager::drawScreen0(THCController* thc, SpeedMonitor* speedMonitor)
         lcd.setCursor(0, 1);
         lcd.print("Tgt:");
         lcd.setCursor(4, 1);
-        lcd.print(setpoint, 1);
+        char sBuf[8];
+        dtostrf(setpoint, 5, 1, sBuf);  // Largeur fixe 5 chars
+        lcd.print(sBuf);
         lcd.print("V");
         lastSetpoint = setpoint;
     }
