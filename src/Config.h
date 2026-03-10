@@ -1,7 +1,7 @@
 /**
  * SmartTHC - Configuration
- * 
- * Centralise toutes les constantes, pins et valeurs par défaut
+ *
+ * Centralizes all constants, pins and default values
  */
 
 #ifndef CONFIG_H
@@ -13,30 +13,30 @@
 // PINS - Arduino Uno R4 Minima
 // ============================================================================
 
-// Entrées/Sorties Plasma & THC
+// Plasma & THC I/O
 #define PLASMA_PIN      12  // Input: plasma arc OK signal
 #define ENABLE_PIN      10  // Input: THC enable (pull-up)
 #define THC_OFF_PIN     11  // Input: THC off signal
 #define PLASMA_VOLTAGE  A0  // ADC: plasma voltage
 
-// Contrôle moteur Z
+// Z motor control
 #define ENABLE_Z_PIN    10  // Enable stepper Z
 #define DIR_PIN         8   // Direction
 #define STEP_PIN        6   // Step
-#define SWITCH1         9   // Sortie switch 1
-#define SWITCH2         13  // Sortie switch 2
+#define SWITCH1         9   // Output switch 1
+#define SWITCH2         13  // Output switch 2
 
-// Encodeur rotatif KY-040
+// Rotary encoder KY-040
 #define ENCODER_PIN_A   4   // CLK
 #define ENCODER_PIN_B   5   // DT
-#define BUTTON_PIN      7   // SW (bouton)
+#define BUTTON_PIN      7   // SW (button)
 
-// Interruptions vitesse X/Y
-#define STEP_X_PIN      2   // Interruption X
-#define STEP_Y_PIN      3   // Interruption Y
+// X/Y speed interrupts
+#define STEP_X_PIN      2   // X interrupt
+#define STEP_Y_PIN      3   // Y interrupt
 
 // ============================================================================
-// PARAMÈTRES MÉCANIQUES
+// MECHANICAL PARAMETERS
 // ============================================================================
 
 #ifndef STEPS_PER_MM_X
@@ -62,11 +62,11 @@
 #define MM_PER_INCH     25.4
 
 // ============================================================================
-// UNITÉS (IMPÉRIAL vs MÉTRIQUE)
+// UNITS (IMPERIAL vs METRIC)
 // ============================================================================
 
 #if USE_IMPERIAL
-    const float DEFAULT_CUT_SPEED = 51.0f;      // ~1300 mm/min en IPM
+    const float DEFAULT_CUT_SPEED = 51.0f;      // ~1300 mm/min in IPM
     const float MAX_CUT_SPEED = 400.0f;
     const float CUT_SPEED_ADJUST_STEP = 5.0f;
     const float DIST_PER_STEP_X = (1.0f / STEPS_PER_MM_X) / MM_PER_INCH;
@@ -83,12 +83,12 @@
     const char* const SPEED_UNIT_LONG = "mm/min";
 #endif
 
-// Z axis toujours en mm
+// Z axis always in mm
 const float DIST_PER_STEP_Z = 1.0f / STEPS_PER_MM_Z;
 const long ANTI_DIVE_BONUS_STEPS = (long)(ANTI_DIVE_BONUS_MM * STEPS_PER_MM_Z);
 
 // ============================================================================
-// VALEURS PAR DÉFAUT PID
+// PID DEFAULT VALUES
 // ============================================================================
 
 const float DEFAULT_SETPOINT = 110.0f;
@@ -99,7 +99,7 @@ const float DEFAULT_KI = 7.5f;
 const float DEFAULT_KD = 2.0f;
 
 // ============================================================================
-// ADRESSES EEPROM
+// EEPROM ADDRESSES
 // ============================================================================
 
 #define EEPROM_SETPOINT_ADDR            0
@@ -114,60 +114,60 @@ const float DEFAULT_KD = 2.0f;
 const byte EEPROM_INIT_FLAG_VALUE = 0xAA;
 
 // ============================================================================
-// TIMINGS & INTERVALLES
+// TIMINGS & INTERVALS
 // ============================================================================
 
-const unsigned long DISPLAY_INTERVAL = 250;         // ms - rafraîchissement LCD
-const unsigned long SPEED_INTERVAL = 50;            // ms - calcul vitesse
-const unsigned long LOG_INTERVAL = 150;             // ms - logs série
-const unsigned long LOOP_LOG_INTERVAL = 10000;      // ms - stats boucle
-const unsigned long EEPROM_WRITE_INTERVAL = 1000;   // ms - sauvegarde EEPROM
-const unsigned long STABILIZATION_DELAY = 750;      // ms - délai stabilisation plasma
-const unsigned long THC_ON_RESTAB_DELAY = 300;      // ms - délai re-stabilisation après THC_OFF → THC_ON
-const unsigned long STEP_TIMEOUT = 500;             // ms - timeout pas
-const unsigned long DEBOUNCE_US = 3;                // µs - anti-rebond interruptions
+const unsigned long DISPLAY_INTERVAL = 250;         // ms - LCD refresh
+const unsigned long SPEED_INTERVAL = 50;            // ms - speed calculation
+const unsigned long LOG_INTERVAL = 150;             // ms - serial logging
+const unsigned long LOOP_LOG_INTERVAL = 10000;      // ms - loop stats
+const unsigned long EEPROM_WRITE_INTERVAL = 1000;   // ms - EEPROM save
+const unsigned long STABILIZATION_DELAY = 750;      // ms - plasma stabilization delay
+const unsigned long THC_ON_RESTAB_DELAY = 300;      // ms - re-stabilization delay after THC_OFF -> THC_ON
+const unsigned long STEP_TIMEOUT = 500;             // ms - step timeout
+const unsigned long DEBOUNCE_US = 3;                // us - interrupt debounce
 
 // PID timing
-const unsigned long PID_INTERVAL_US = 1000;         // µs - 1kHz
+const unsigned long PID_INTERVAL_US = 1000;         // us - 1kHz
 
 // ============================================================================
-// PARAMÈTRES ANTI-DIVE
+// ANTI-DIVE PARAMETERS
 // ============================================================================
 
-const unsigned long ANTI_DIVE_DURATION_MIN = 50;    // ms - durée min
-const unsigned long ANTI_DIVE_DURATION_MAX = 300;   // ms - durée max
-const unsigned long MAX_ANTI_DIVE_DURATION = 1000;  // ms - durée max totale
-const float DROP_THRESHOLD = 5.0f;                  // V - seuil activation
-const float RETURN_THRESHOLD = 3.0f;                // V - seuil désactivation
+const unsigned long ANTI_DIVE_DURATION_MIN = 50;    // ms - min duration
+const unsigned long ANTI_DIVE_DURATION_MAX = 300;   // ms - max duration
+const unsigned long MAX_ANTI_DIVE_DURATION = 1000;  // ms - max total duration
+const float DROP_THRESHOLD = 5.0f;                  // V - activation threshold
+const float RETURN_THRESHOLD = 3.0f;                // V - deactivation threshold
 const float ANTI_DIVE_LIFT_SPEED = 1000.0f;         // steps/s
 const float ANTI_DIVE_LIFT_ACCEL = 5000.0f;         // steps/s²
 
-// Historique position pour anti-dive
+// Position history for anti-dive
 const int POSITION_HISTORY_INTERVAL = 100;          // ms
-const int POSITION_HISTORY_SIZE = 20;               // ~2 secondes
+const int POSITION_HISTORY_SIZE = 20;               // ~2 seconds
 
 // ============================================================================
-// PARAMÈTRES AFFICHAGE ANTI-DIVE
+// ANTI-DIVE DISPLAY PARAMETERS
 // ============================================================================
 
-const unsigned long ANTI_DIVE_DISPLAY_DURATION = 5000;  // ms - durée message
-const unsigned long ANTI_DIVE_BLINK_INTERVAL = 250;     // ms - clignotement
+const unsigned long ANTI_DIVE_DISPLAY_DURATION = 5000;  // ms - message duration
+const unsigned long ANTI_DIVE_BLINK_INTERVAL = 250;     // ms - blink interval
 
 // ============================================================================
-// SEUILS & LIMITES
+// THRESHOLDS & LIMITS
 // ============================================================================
 
-const float ARC_THRESHOLD = 10.0f;                  // V - détection arc
+const float ARC_THRESHOLD = 10.0f;                  // V - arc detection
 const float SPEED_CORRECTION = 1.0f;
 const unsigned long MIN_STEPS = 20;
 
-// Limites PID
+// PID limits
 const double PID_OUTPUT_MIN = -2500.0;
 const double PID_OUTPUT_MAX = 2500.0;
 const double PID_WINDUP_MIN = -100.0;
 const double PID_WINDUP_MAX = 100.0;
 
-// Limites paramètres
+// Parameter limits
 const float SETPOINT_MIN = 50.0f;
 const float SETPOINT_MAX = 200.0f;
 const float CORRECTION_FACTOR_MIN = 0.5f;
@@ -179,22 +179,22 @@ const double KI_MAX = 1.0;
 const double KD_MAX = 100.0;
 
 // ============================================================================
-// PARAMÈTRES MOTEUR
+// MOTOR PARAMETERS
 // ============================================================================
 
 const float STEPPER_MAX_SPEED = 5000.0f;
 const float STEPPER_ACCELERATION = 5000.0f;
-const float STEPPER_DEADZONE = 1.0f;                // V - zone morte PID
+const float STEPPER_DEADZONE = 1.0f;                // V - PID dead zone
 
 // ============================================================================
-// FILTRAGE
+// FILTERING
 // ============================================================================
 
 const int SPEED_FILTER_SIZE = 1;
 #define OVERSAMPLE_TARGET 10
-const float INPUT_ALPHA = 0.7f;                     // Low-pass rapide
-const float ALPHA_SLOW = 0.8f;                      // Low-pass lent
-const int N_SLOW = 200;                             // Moyenne lente
+const float INPUT_ALPHA = 0.7f;                     // Fast low-pass
+const float ALPHA_SLOW = 0.8f;                      // Slow low-pass
+const int N_SLOW = 200;                             // Slow average
 
 // ============================================================================
 // LCD
@@ -204,7 +204,7 @@ const int N_SLOW = 200;                             // Moyenne lente
 #define LCD_COLUMNS 16
 #define LCD_ROWS 2
 
-// Caractères personnalisés
+// Custom characters
 #define CHAR_ENABLE       0
 #define CHAR_PLASMA       1
 #define CHAR_THC_ACTIVE   2
@@ -214,7 +214,7 @@ const int N_SLOW = 200;                             // Moyenne lente
 #define CHAR_ENABLE_ALL   6
 
 // ============================================================================
-// NOMBRE D'ÉCRANS
+// NUMBER OF SCREENS
 // ============================================================================
 
 const int NB_SCREENS = 8;

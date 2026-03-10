@@ -52,7 +52,7 @@ Cross-compilation environments for Raspberry Pi also available: `uno_r4_minima_R
 ## Conventions
 
 - CamelCase classes, camelCase methods/variables, UPPER_CASE constants
-- Comments are in **French**
+- Comments and code are in **English**
 - Real-time constraints: non-blocking patterns throughout (no `delay()`), interrupt-based step counting, µs-precision timing
 - Memory-conscious: circular buffers, cached LCD values, deferred EEPROM writes to minimize flash wear
 - External libraries: `LiquidCrystal_I2C`, `AccelStepper`, `ArduPID` (managed by PlatformIO)

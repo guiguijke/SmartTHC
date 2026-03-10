@@ -1,8 +1,7 @@
 /**
- * SmartTHC - Gestionnaire d'affichage
- * 
- * Gère l'affichage LCD 16x2 avec rafraîchissement optimisé
- * et message clignotant Anti-Dive
+ * SmartTHC - Display Manager
+ *
+ * Manages the 16x2 LCD with optimized refresh and blinking Anti-Dive message
  */
 
 #ifndef DISPLAY_MANAGER_H
@@ -16,43 +15,43 @@
 class THCController;
 class SpeedMonitor;
 
-// État de l'affichage Anti-Dive
+// Anti-Dive display state
 enum AntiDiveDisplayState {
-    AD_DISPLAY_IDLE,        // Affichage normal
-    AD_DISPLAY_ACTIVE,      // Message anti-dive affiché
-    AD_DISPLAY_BLINK_ON,    // Clignotant ON
-    AD_DISPLAY_BLINK_OFF    // Clignotant OFF
+    AD_DISPLAY_IDLE,        // Normal display
+    AD_DISPLAY_ACTIVE,      // Anti-dive message shown
+    AD_DISPLAY_BLINK_ON,    // Blinking ON
+    AD_DISPLAY_BLINK_OFF    // Blinking OFF
 };
 
 class DisplayManager {
 public:
     DisplayManager();
-    
-    // Initialisation
+
+    // Initialization
     void begin();
-    
-    // Mise à jour de l'affichage
-    void update(unsigned long currentTime, int currentScreen, 
+
+    // Display update
+    void update(unsigned long currentTime, int currentScreen,
                 THCController* thc, SpeedMonitor* speedMonitor,
                 float tempCorrectionFactor, int encoderDelta);
-    
-    // Notification d'activation anti-dive
+
+    // Anti-dive activation notification
     void notifyAntiDiveActivated();
-    
-    // Forcer le rafraîchissement complet
+
+    // Force full refresh
     void forceRefresh();
 
 private:
     LiquidCrystal_I2C lcd;
-    
-    // État de l'affichage
+
+    // Display state
     int lastScreen;
     AntiDiveDisplayState adState;
     unsigned long adStartTime;
     unsigned long lastBlinkTime;
     bool blinkVisible;
-    
-    // Variables pour éviter les réécritures inutiles
+
+    // Cached values to avoid unnecessary rewrites
     float lastActualVoltage;
     float lastSetpoint;
     int lastSpeed;
@@ -66,8 +65,8 @@ private:
     float lastUncorrectedFast;
     float lastAdjustedVoltage;
     bool lastAntiDiveDisplayActive;
-    
-    // Méthodes d'affichage par écran
+
+    // Screen drawing methods
     void drawScreen0(THCController* thc, SpeedMonitor* speedMonitor);
     void drawScreen1(THCController* thc);
     void drawScreen2(THCController* thc, float tempCorrectionFactor);
@@ -76,21 +75,21 @@ private:
     void drawScreen5(THCController* thc);
     void drawScreen6(THCController* thc);
     void drawScreen7(THCController* thc);
-    
-    // Méthodes utilitaires
+
+    // Utility methods
     void clearLine(int line);
     void printRightAligned(int col, int row, int value, int width);
     void printRightAligned(int col, int row, float value, int width, int decimals);
     void drawStatusIcons(THCController* thc);
     void resetCachedValues();
-    
-    // Gestion du message Anti-Dive
+
+    // Anti-Dive message handling
     void updateAntiDiveDisplay(unsigned long currentTime);
     bool shouldShowAntiDiveMessage(unsigned long currentTime);
     void drawAntiDiveMessage();
     void clearAntiDiveMessage();
-    
-    // Création des caractères personnalisés
+
+    // Custom character creation
     void createCustomCharacters();
 };
 

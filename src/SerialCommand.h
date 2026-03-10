@@ -1,7 +1,7 @@
 /**
- * SmartTHC - Gestionnaire de commandes série
- * 
- * Gère les commandes via le port série (RESET_EEPROM, etc.)
+ * SmartTHC - Serial Command Handler
+ *
+ * Manages serial port commands (RESET_EEPROM, etc.)
  */
 
 #ifndef SERIAL_COMMAND_H
@@ -17,21 +17,21 @@ class SpeedMonitor;
 class SerialCommand {
 public:
     SerialCommand();
-    
-    // Initialisation
+
+    // Initialization
     void begin(long baudRate = 115200);
-    
-    // Traiter les commandes entrantes
+
+    // Process incoming commands
     void update(EEPROMManager* eeprom, THCController* thc, SpeedMonitor* speed);
-    
-    // Logging périodique
+
+    // Periodic logging
     void logStatus(unsigned long currentTime, THCController* thc, SpeedMonitor* speed);
     void logLoopStats(unsigned long currentTime, unsigned long avgTime, float frequency);
 
 private:
     unsigned long lastLogTime;
     unsigned long lastLoopLogTime;
-    
+
     void processCommand(String& command, EEPROMManager* eeprom, THCController* thc, SpeedMonitor* speed);
     void printStatus(THCController* thc, SpeedMonitor* speed);
 };

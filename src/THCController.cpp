@@ -1,7 +1,7 @@
 /**
- * SmartTHC - Contrôleur THC
- * 
- * Implémentation de la logique THC
+ * SmartTHC - THC Controller
+ *
+ * THC logic implementation
  */
 
 #include "THCController.h"
@@ -46,62 +46,62 @@ THCController::THCController()
     , adcWarmedUp(false)
     , adcStartTime(0)
 {
-    // Initialiser le tableau slowSamples
+    // Initialize slowSamples array
     for (int i = 0; i < N_SLOW; i++) {
         slowSamples[i] = 0.0f;
     }
 }
 
 void THCController::begin() {
-    // Configurer les pins
+    // Configure pins
     pinMode(PLASMA_PIN, INPUT);
     pinMode(ENABLE_PIN, INPUT_PULLUP);
     pinMode(THC_OFF_PIN, INPUT);
     pinMode(SWITCH1, OUTPUT);
     pinMode(SWITCH2, OUTPUT);
     pinMode(PLASMA_VOLTAGE, INPUT);
-    
-    // État initial des switchs
+
+    // Initial switch state
     digitalWrite(SWITCH1, HIGH);
     digitalWrite(SWITCH2, HIGH);
-    
-    // Configurer le moteur
+
+    // Configure motor
     stepper.setMaxSpeed(STEPPER_MAX_SPEED);
     stepper.setAcceleration(STEPPER_ACCELERATION);
-    
-    // Configurer le PID
+
+    // Configure PID
     pid.begin(&Input, &Output, &Setpoint, Kp, Ki, Kd);
     pid.setOutputLimits(PID_OUTPUT_MIN, PID_OUTPUT_MAX);
     pid.setWindUpLimits(PID_WINDUP_MIN, PID_WINDUP_MAX);
-    
-    // Résolution ADC
+
+    // ADC resolution
     analogReadResolution(14);
-    
-    // Démarrer le warm-up ADC
+
+    // Start ADC warm-up
     adcStartTime = millis();
 }
 
 void THCController::update(unsigned long currentTime) {
-    // Warm-up ADC
+    // ADC warm-up
     if (!adcWarmedUp) {
         if (currentTime - adcStartTime >= 1000) {
             adcWarmedUp = true;
         }
     }
-    
-    // Lire et filtrer la tension
+
+    // Read and filter voltage
     readAndFilterVoltage(currentTime);
-    
-    // Mettre à jour l'état anti-dive
+
+    // Update anti-dive state
     updateAntiDive(currentTime);
-    
-    // Mettre à jour l'état plasma
+
+    // Update plasma state
     updatePlasmaState(currentTime);
-    
-    // Mettre à jour l'état THC
+
+    // Update THC state
     updateTHCState(currentTime);
-    
-    // Contrôler le moteur
+
+    // Control motor
     controlMotor(currentTime);
 }
 
@@ -110,26 +110,26 @@ void THCController::runMotor() {
 }
 
 void THCController::readAndFilterVoltage(unsigned long currentTime) {
-    // Lecture brute ADC
+    // Raw ADC reading
     int reading = analogRead(PLASMA_VOLTAGE);
     float raw = (reading / 16383.0f) * 5.0f * DEFAULT_VOLTAGEDIVIDER;
-    
-    // === FAST : Oversample 10x + Low-pass (entrée PID) ===
+
+    // === FAST: Oversample 10x + Low-pass (PID input) ===
     oversampleSum += raw;
     oversampleCount++;
-    
+
     if (oversampleCount >= OVERSAMPLE_TARGET) {
         float avgRaw = oversampleSum / OVERSAMPLE_TARGET;
         uncorrectedFast = INPUT_ALPHA * avgRaw + (1.0f - INPUT_ALPHA) * lastPidInput;
         lastPidInput = uncorrectedFast;
         fastVoltage = uncorrectedFast * voltageCorrectionFactor;
         Input = fastVoltage;
-        
+
         oversampleSum = 0.0f;
         oversampleCount = 0;
     }
-    
-    // === SLOW : Moyenne 200 + Low-pass (référence anti-dive) ===
+
+    // === SLOW: 200-sample average + Low-pass (anti-dive reference) ===
     if (!slowInit) {
         for (int i = 0; i < N_SLOW; i++) {
             slowSamples[i] = raw;
@@ -137,60 +137,60 @@ void THCController::readAndFilterVoltage(unsigned long currentTime) {
         slowSum = raw * N_SLOW;
         slowInit = true;
     }
-    
+
     slowSum -= slowSamples[slowIdx];
     slowSamples[slowIdx] = raw;
     slowSum += raw;
     slowIdx = (slowIdx + 1) % N_SLOW;
-    
+
     float slowRawAvg = slowSum / N_SLOW;
     uncorrectedSlow = slowRawAvg;
-    slowVoltage = ALPHA_SLOW * (slowRawAvg * voltageCorrectionFactor) + 
+    slowVoltage = ALPHA_SLOW * (slowRawAvg * voltageCorrectionFactor) +
                   (1.0f - ALPHA_SLOW) * slowLp;
     slowLp = slowVoltage;
-    
-    // Détection d'arc
+
+    // Arc detection
     arcDetected = (fastVoltage > ARC_THRESHOLD);
 }
 
 void THCController::updateAntiDive(unsigned long currentTime) {
     static bool lastAntiDiveState = false;
-    
-    // Activation anti-dive
-    if (adcWarmedUp && 
-        fastVoltage > slowVoltage + DROP_THRESHOLD && 
-        !antiDiveActive && 
-        plasmaPinLow && 
-        plasmaStabilized && 
+
+    // Anti-dive activation
+    if (adcWarmedUp &&
+        fastVoltage > slowVoltage + DROP_THRESHOLD &&
+        !antiDiveActive &&
+        plasmaPinLow &&
+        plasmaStabilized &&
         thcActive) {
-        
+
         antiDiveActive = true;
         justAntiDiveActivated = true;
         antiDiveStartTime = currentTime;
         voltageAtActivation = slowVoltage;
     }
-    
-    // Désactivation anti-dive
+
+    // Anti-dive deactivation
     if (antiDiveActive) {
         bool shouldDeactivate = (fastVoltage <= voltageAtActivation + RETURN_THRESHOLD) ||
                                (currentTime - antiDiveStartTime >= MAX_ANTI_DIVE_DURATION);
-        
+
         if (shouldDeactivate) {
             antiDiveActive = false;
             justAntiDiveActivated = false;
         }
     }
-    
+
     lastAntiDiveState = antiDiveActive;
 }
 
 void THCController::updatePlasmaState(unsigned long currentTime) {
-    // Lire les entrées
+    // Read inputs
     plasmaPinLow = (digitalRead(PLASMA_PIN) == LOW);
     enablePinLow = (digitalRead(ENABLE_PIN) == LOW);
     thcOff = (digitalRead(THC_OFF_PIN) == HIGH);
-    
-    // Contrôler les switchs
+
+    // Control switches
     if (plasmaPinLow) {
         digitalWrite(SWITCH1, LOW);
         digitalWrite(SWITCH2, LOW);
@@ -198,10 +198,10 @@ void THCController::updatePlasmaState(unsigned long currentTime) {
         digitalWrite(SWITCH1, HIGH);
         digitalWrite(SWITCH2, HIGH);
     }
-    
-    // Gestion de la stabilisation
+
+    // Stabilization handling
     static bool lastPlasmaStabilized = false;
-    
+
     if (plasmaPinLow && !plasmaStabilized) {
         if (plasmaActiveTime == 0) {
             plasmaActiveTime = currentTime;
@@ -216,32 +216,32 @@ void THCController::updatePlasmaState(unsigned long currentTime) {
         plasmaActiveTime = 0;
         plasmaStabilized = false;
     }
-    
+
     lastPlasmaStabilized = plasmaStabilized;
 }
 
 void THCController::updateTHCState(unsigned long currentTime) {
-    // Détecter la transition THC_OFF → THC_ON (thcOff passe de false à true)
+    // Detect THC_OFF -> THC_ON transition (thcOff goes from false to true)
     if (thcOff && !prevThcOff) {
-        // THC vient d'être ré-autorisé : imposer un délai de re-stabilisation
+        // THC just re-enabled: enforce re-stabilization delay
         thcOnStabilized = false;
         thcOnTransitionTime = currentTime;
     }
     if (!thcOff) {
         thcOnStabilized = false;
     }
-    // Vérifier si le délai de re-stabilisation est écoulé
+    // Check if re-stabilization delay has elapsed
     if (!thcOnStabilized && thcOff &&
         (currentTime - thcOnTransitionTime >= THC_ON_RESTAB_DELAY)) {
         thcOnStabilized = true;
     }
     prevThcOff = thcOff;
 
-    // Déterminer le nouvel état THC (thcOnStabilized empêche l'activation immédiate)
+    // Determine new THC state (thcOnStabilized prevents immediate activation)
     bool thcActiveNew = thcOff && thcOnStabilized && enablePinLow &&
                         plasmaPinLow && plasmaStabilized && arcDetected;
 
-    // Gestion du démarrage/arrêt du PID
+    // PID start/stop handling
     if (thcActiveNew != lastThcActive) {
         if (thcActiveNew) {
             pid.start();
@@ -268,20 +268,20 @@ void THCController::controlMotor(unsigned long currentTime) {
 
 void THCController::performAntiDiveLift(unsigned long currentTime) {
     if (justAntiDiveActivated) {
-        // Calculer la position cible (1 seconde en arrière + bonus)
-        // Note: l'historique doit être fourni par l'appelant
+        // Calculate target position (1 second back + bonus)
+        // Note: history must be provided by caller
         justAntiDiveActivated = false;
     }
-    
+
     stepper.run();
 }
 
 void THCController::normalTHCControl() {
     pid.compute();
-    
+
     double error = Setpoint - Input;
-    const float alpha = 0.5f; // Facteur de lissage
-    
+    const float alpha = 0.5f; // Smoothing factor
+
     if (abs(error) > STEPPER_DEADZONE) {
         smoothedOutput = alpha * Output + (1.0 - alpha) * smoothedOutput;
         stepper.setSpeed(Output);

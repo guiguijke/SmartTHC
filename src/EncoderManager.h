@@ -1,8 +1,8 @@
 /**
- * SmartTHC - Gestionnaire d'encodeur KY-040
- * 
- * Gère l'encodeur rotatif et son bouton avec anti-rebond robuste
- * Fix pour le problème de clic intempestif lors de la rotation
+ * SmartTHC - KY-040 Encoder Manager
+ *
+ * Manages the rotary encoder and button with robust debouncing
+ * Fix for spurious click during rotation
  */
 
 #ifndef ENCODER_MANAGER_H
@@ -11,68 +11,68 @@
 #include <Arduino.h>
 #include "Config.h"
 
-// États de la machine à états du bouton
+// Button state machine states
 enum ButtonState {
-    BTN_IDLE,           // Rien ne se passe
-    BTN_PRESSED,        // Appui détecté, attente confirmation
-    BTN_HELD,           // Appui confirmé
-    BTN_RELEASED        // Relâchement détecté, clic validé
+    BTN_IDLE,           // Nothing happening
+    BTN_PRESSED,        // Press detected, awaiting confirmation
+    BTN_HELD,           // Press confirmed
+    BTN_RELEASED        // Release detected, click validated
 };
 
 class EncoderManager {
 public:
     EncoderManager();
-    
-    // Initialisation
+
+    // Initialization
     void begin();
-    
-    // Mise à jour - à appeler dans loop()
+
+    // Update - call in loop()
     void update();
-    
-    // Lecture de la position de l'encodeur
+
+    // Encoder position reading
     int getPosition() const { return encoderPos; }
     void resetPosition() { encoderPos = 0; lastEncoderPos = 0; }
-    
-    // Lecture du delta depuis le dernier appel
+
+    // Delta since last call
     int getDelta();
-    
-    // Détection d'un clic (front descendant propre)
+
+    // Click detection (clean falling edge)
     bool isButtonClicked();
-    
-    // États bruts (pour debug)
+
+    // Raw states (for debug)
     bool isButtonPressed() const { return buttonState == BTN_HELD; }
     bool isRotating() const { return rotationActive; }
-    
+
     // Configuration
     void setDebounceTime(unsigned long ms) { debounceTime = ms; }
     void setLockoutTime(unsigned long ms) { lockoutTime = ms; }
     void setRotationTimeout(unsigned long ms) { rotationTimeout = ms; }
 
 private:
-    // État de l'encodeur
+    // Encoder state
     volatile int encoderPos;
     int lastEncoderPos;
     int prevCLK;
     int prevDT;
-    
-    // État du bouton (machine à états)
+
+    // Button state (state machine)
     ButtonState buttonState;
     bool lastButtonReading;
     unsigned long buttonStateTime;
     unsigned long lastClickTime;
     bool clickPending;
-    
-    // Détection rotation
+
+    // Rotation detection
     bool rotationActive;
     unsigned long lastRotationTime;
     int lastRotationDelta;
-    
-    // Paramètres anti-rebond
-    unsigned long debounceTime;     // Temps de confirmation appui/relâchement
-    unsigned long lockoutTime;      // Verrouillage après clic
-    unsigned long rotationTimeout;  // Temps avant fin de rotation
-    
-    // Méthodes internes
+
+    // Debounce parameters
+    unsigned long debounceTime;     // Press/release confirmation time
+    unsigned long lockoutTime;      // Lockout after click
+    unsigned long rotationTimeout;  // Time before end of rotation
+
+    // Internal methods
     void readEncoder();
     void updateButtonState(unsigned long currentTime);
     bool readButtonPin();

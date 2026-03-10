@@ -1,12 +1,12 @@
 /**
- * SmartTHC - Gestionnaire d'encodeur KY-040
- * 
- * Implémentation avec anti-rebond robuste pour éviter les clics intempestifs
+ * SmartTHC - KY-040 Encoder Manager
+ *
+ * Implementation with robust debouncing to prevent spurious clicks
  */
 
 #include "EncoderManager.h"
 
-EncoderManager::EncoderManager() 
+EncoderManager::EncoderManager()
     : encoderPos(0)
     , lastEncoderPos(0)
     , prevCLK(HIGH)
@@ -19,19 +19,19 @@ EncoderManager::EncoderManager()
     , rotationActive(false)
     , lastRotationTime(0)
     , lastRotationDelta(0)
-    , debounceTime(30)      // 30ms pour confirmer appui/relâchement
-    , lockoutTime(250)      // 250ms de verrouillage après clic
-    , rotationTimeout(150)  // 150ms sans rotation = fin de rotation
+    , debounceTime(30)      // 30ms to confirm press/release
+    , lockoutTime(250)      // 250ms lockout after click
+    , rotationTimeout(150)  // 150ms without rotation = end of rotation
 {
 }
 
 void EncoderManager::begin() {
-    // Configuration des pins
+    // Pin configuration
     pinMode(ENCODER_PIN_A, INPUT_PULLUP);
     pinMode(ENCODER_PIN_B, INPUT_PULLUP);
     pinMode(BUTTON_PIN, INPUT_PULLUP);
-    
-    // Lecture initiale
+
+    // Initial reading
     prevCLK = digitalRead(ENCODER_PIN_A);
     prevDT = digitalRead(ENCODER_PIN_B);
     lastButtonReading = readButtonPin();
@@ -39,22 +39,22 @@ void EncoderManager::begin() {
 
 void EncoderManager::update() {
     unsigned long currentTime = millis();
-    
-    // Lecture de l'encodeur rotatif
+
+    // Read rotary encoder
     readEncoder();
-    
-    // Détection d'activité de rotation
+
+    // Rotation activity detection
     int currentDelta = encoderPos - lastEncoderPos;
     if (currentDelta != 0) {
         rotationActive = true;
         lastRotationTime = currentTime;
         lastRotationDelta = currentDelta;
     } else if (rotationActive && (currentTime - lastRotationTime > rotationTimeout)) {
-        // Fin de rotation après timeout
+        // End of rotation after timeout
         rotationActive = false;
     }
-    
-    // Mise à jour de la machine à états du bouton
+
+    // Update button state machine
     updateButtonState(currentTime);
 }
 
@@ -75,10 +75,10 @@ bool EncoderManager::isButtonClicked() {
 void EncoderManager::readEncoder() {
     int currentCLK = digitalRead(ENCODER_PIN_A);
     int currentDT = digitalRead(ENCODER_PIN_B);
-    
-    // Détection de front sur CLK
+
+    // Edge detection on CLK
     if (currentCLK != prevCLK) {
-        // Algo de lecture KY-040 standard
+        // Standard KY-040 reading algorithm
         if (currentCLK == HIGH) {
             if (currentDT == LOW && prevDT == HIGH) {
                 encoderPos++;
@@ -92,54 +92,54 @@ void EncoderManager::readEncoder() {
 }
 
 bool EncoderManager::readButtonPin() {
-    // Le bouton est actif LOW (pull-up)
+    // Button is active LOW (pull-up)
     return digitalRead(BUTTON_PIN) == LOW;
 }
 
 void EncoderManager::updateButtonState(unsigned long currentTime) {
     bool buttonReading = readButtonPin();
-    
+
     switch (buttonState) {
         case BTN_IDLE:
-            // Attente d'un appui
+            // Waiting for press
             if (buttonReading && !lastButtonReading) {
-                // Front descendant détecté
+                // Falling edge detected
                 buttonState = BTN_PRESSED;
                 buttonStateTime = currentTime;
             }
             break;
-            
+
         case BTN_PRESSED:
-            // Confirmation de l'appui (anti-rebond)
+            // Press confirmation (debounce)
             if (!buttonReading) {
-                // Retour à HIGH trop tôt = rebond
+                // Returned HIGH too soon = bounce
                 buttonState = BTN_IDLE;
             } else if (currentTime - buttonStateTime >= debounceTime) {
-                // Appui confirmé après debounce
+                // Press confirmed after debounce
                 buttonState = BTN_HELD;
             }
             break;
-            
+
         case BTN_HELD:
-            // Attente du relâchement
+            // Waiting for release
             if (!buttonReading) {
-                // Front montant détecté
+                // Rising edge detected
                 buttonState = BTN_RELEASED;
                 buttonStateTime = currentTime;
             }
             break;
-            
+
         case BTN_RELEASED:
-            // Confirmation du relâchement (anti-rebond)
+            // Release confirmation (debounce)
             if (buttonReading) {
-                // Retour à LOW trop tôt = rebond
+                // Returned LOW too soon = bounce
                 buttonState = BTN_HELD;
             } else if (currentTime - buttonStateTime >= debounceTime) {
-                // Relâchement confirmé = CLIC VALIDÉ
-                
-                // Vérifier le verrouillage après dernier clic
+                // Release confirmed = CLICK VALIDATED
+
+                // Check lockout since last click
                 if (currentTime - lastClickTime >= lockoutTime) {
-                    // Ignorer le clic si on est en pleine rotation (sécurité KY-040)
+                    // Ignore click if currently rotating (KY-040 safety)
                     if (!rotationActive) {
                         clickPending = true;
                         lastClickTime = currentTime;
@@ -149,6 +149,6 @@ void EncoderManager::updateButtonState(unsigned long currentTime) {
             }
             break;
     }
-    
+
     lastButtonReading = buttonReading;
 }

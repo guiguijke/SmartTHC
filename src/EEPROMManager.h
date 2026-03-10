@@ -1,7 +1,7 @@
 /**
- * SmartTHC - Gestionnaire EEPROM
- * 
- * Gère la sauvegarde et le chargement des paramètres en EEPROM
+ * SmartTHC - EEPROM Manager
+ *
+ * Manages parameter save/load to EEPROM
  */
 
 #ifndef EEPROM_MANAGER_H
@@ -11,7 +11,7 @@
 #include <EEPROM.h>
 #include "Config.h"
 
-// Structure pour les paramètres
+// Parameter structure
 struct THCParameters {
     float setpoint;
     float correctionFactor;
@@ -20,9 +20,9 @@ struct THCParameters {
     double kp;
     double ki;
     double kd;
-    
-    // Valeurs valides par défaut
-    THCParameters() 
+
+    // Valid default values
+    THCParameters()
         : setpoint(DEFAULT_SETPOINT)
         , correctionFactor(DEFAULT_CORRECTION_FACTOR)
         , cutSpeed(DEFAULT_CUT_SPEED)
@@ -36,15 +36,15 @@ struct THCParameters {
 class EEPROMManager {
 public:
     EEPROMManager();
-    
-    // Initialisation - charge les paramètres ou initialise avec défaut
+
+    // Initialization - loads parameters or initializes with defaults
     void begin();
-    
-    // Chargement/sauvegarde complets
+
+    // Full load/save
     void loadParameters(THCParameters& params);
     void saveParameters(const THCParameters& params);
-    
-    // Sauvegardes individuelles (avec délai)
+
+    // Individual saves (deferred)
     void scheduleSaveSetpoint(float value);
     void scheduleSaveCorrectionFactor(float value);
     void scheduleSaveCutSpeed(float value);
@@ -52,13 +52,13 @@ public:
     void scheduleSaveKp(double value);
     void scheduleSaveKi(double value);
     void scheduleSaveKd(double value);
-    
-    // Traitement des sauvegardes différées (à appeler dans loop)
+
+    // Process deferred saves (call in loop)
     void update();
-    
-    // Réinitialisation
+
+    // Reset to defaults
     void resetToDefaults();
-    
+
     // Validation
     static bool validateSetpoint(float value);
     static bool validateCorrectionFactor(float value);
@@ -69,7 +69,7 @@ public:
     static bool validateKd(double value);
 
 private:
-    // Valeurs en attente de sauvegarde
+    // Pending save values
     float pendingSetpoint;
     float pendingCorrectionFactor;
     float pendingCutSpeed;
@@ -77,8 +77,8 @@ private:
     double pendingKp;
     double pendingKi;
     double pendingKd;
-    
-    // Flags de sauvegarde différée
+
+    // Deferred save flags
     bool saveSetpointFlag;
     bool saveCorrectionFactorFlag;
     bool saveCutSpeedFlag;
@@ -86,14 +86,14 @@ private:
     bool saveKpFlag;
     bool saveKiFlag;
     bool saveKdFlag;
-    
+
     unsigned long lastEEPROMWrite;
-    
+
     void writeFloat(int address, float value);
     float readFloat(int address);
     void writeDouble(int address, double value);
     double readDouble(int address);
-    
+
     bool isEEPROMInitialized();
     void markEEPROMInitialized();
 };

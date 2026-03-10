@@ -1,7 +1,7 @@
 /**
- * SmartTHC - Contrôleur THC
- * 
- * Gère la logique THC : lecture tension, PID, anti-dive, contrôle moteur Z
+ * SmartTHC - THC Controller
+ *
+ * Handles THC logic: voltage reading, PID, anti-dive, Z motor control
  */
 
 #ifndef THC_CONTROLLER_H
@@ -13,36 +13,36 @@
 #include "Config.h"
 #include "SpeedMonitor.h"
 
-// Événement anti-dive pour l'affichage
+// Anti-dive event for display notification
 struct AntiDiveEvent {
     bool active;
     unsigned long startTime;
     bool justActivated;
-    
+
     AntiDiveEvent() : active(false), startTime(0), justActivated(false) {}
 };
 
 class THCController {
 public:
     THCController();
-    
-    // Initialisation
+
+    // Initialization
     void begin();
-    
-    // Mise à jour principale (appelée à 1kHz)
+
+    // Main update (called at 1kHz)
     void update(unsigned long currentTime);
-    
-    // Mise à jour du moteur (appelée aussi souvent que possible)
+
+    // Motor update (called as often as possible)
     void runMotor();
-    
-    // Configuration PID
+
+    // PID configuration
     void setSetpoint(float value);
     void setKp(double value);
     void setKi(double value);
     void setKd(double value);
     void setCorrectionFactor(float value);
-    
-    // Accesseurs
+
+    // Getters
     float getSetpoint() const { return (float)Setpoint; }
     double getKp() const { return Kp; }
     double getKi() const { return Ki; }
@@ -52,8 +52,8 @@ public:
     float getSlowVoltage() const { return slowVoltage; }
     float getUncorrectedFast() const { return uncorrectedFast; }
     double getPidOutput() const { return Output; }
-    
-    // États
+
+    // States
     bool isPlasmaActive() const { return plasmaPinLow; }
     bool isPlasmaStabilized() const { return plasmaStabilized; }
     bool isArcDetected() const { return arcDetected; }
@@ -61,22 +61,22 @@ public:
     bool isAntiDiveActive() const { return antiDiveActive; }
     bool isEnableLow() const { return enablePinLow; }
     bool isTHCOff() const { return thcOff; }
-    
-    // Événement anti-dive pour l'affichage
+
+    // Anti-dive event for display
     AntiDiveEvent getAntiDiveEvent() const;
     void clearAntiDiveJustActivated();
-    
-    // Position moteur
+
+    // Motor position
     long getMotorPosition() { return stepper.currentPosition(); }
     void setMotorPosition(long position) { stepper.setCurrentPosition(position); }
-    
+
     // Reset
     void reset();
 
 private:
-    // Moteur
+    // Motor
     AccelStepper stepper;
-    
+
     // PID
     ArduPID pid;
     double Setpoint;
@@ -85,60 +85,60 @@ private:
     double Kp;
     double Ki;
     double Kd;
-    
-    // Paramètres
+
+    // Parameters
     float voltageCorrectionFactor;
     float tempVoltageCorrectionFactor;
-    
-    // Tensions
+
+    // Voltages
     float fastVoltage;
     float slowVoltage;
     float uncorrectedFast;
     float uncorrectedSlow;
-    
+
     // Oversampling
     float oversampleSum;
     uint8_t oversampleCount;
     float lastPidInput;
-    
+
     // Slow filter
     float slowSamples[N_SLOW];
     int slowIdx;
     float slowSum;
     bool slowInit;
     float slowLp;
-    
-    // État plasma
+
+    // Plasma state
     bool plasmaPinLow;
     bool enablePinLow;
     bool arcDetected;
     bool thcOff;
     bool plasmaStabilized;
     unsigned long plasmaActiveTime;
-    
-    // État THC
+
+    // THC state
     bool thcActive;
     bool lastThcActive;
 
-    // Re-stabilisation après THC_OFF → THC_ON
-    bool prevThcOff;                    // état précédent de thcOff
-    bool thcOnStabilized;               // true quand le délai de re-stab est écoulé
-    unsigned long thcOnTransitionTime;   // timestamp de la transition
-    
+    // Re-stabilization after THC_OFF -> THC_ON
+    bool prevThcOff;                    // previous thcOff state
+    bool thcOnStabilized;               // true when re-stab delay has elapsed
+    unsigned long thcOnTransitionTime;   // transition timestamp
+
     // Anti-dive
     bool antiDiveActive;
     unsigned long antiDiveStartTime;
     float voltageAtActivation;
     bool justAntiDiveActivated;
-    
+
     // Smoothing
     double smoothedOutput;
-    
+
     // Warm-up
     bool adcWarmedUp;
     unsigned long adcStartTime;
-    
-    // Méthodes internes
+
+    // Internal methods
     void readAndFilterVoltage(unsigned long currentTime);
     void updateAntiDive(unsigned long currentTime);
     void updatePlasmaState(unsigned long currentTime);
@@ -146,7 +146,7 @@ private:
     void controlMotor(unsigned long currentTime);
     void performAntiDiveLift(unsigned long currentTime);
     void normalTHCControl();
-    
+
     float readRawVoltage();
     void resetSlowFilter(float initialValue);
 };

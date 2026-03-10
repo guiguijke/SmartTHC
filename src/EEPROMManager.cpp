@@ -1,7 +1,7 @@
 /**
- * SmartTHC - Gestionnaire EEPROM
- * 
- * Implémentation de la sauvegarde/chargement des paramètres
+ * SmartTHC - EEPROM Manager
+ *
+ * Parameter save/load implementation
  */
 
 #include "EEPROMManager.h"
@@ -40,8 +40,8 @@ void EEPROMManager::loadParameters(THCParameters& params) {
     params.kp = readDouble(EEPROM_KP_ADDR);
     params.ki = readDouble(EEPROM_KI_ADDR);
     params.kd = readDouble(EEPROM_KD_ADDR);
-    
-    // Validation et correction si nécessaire
+
+    // Validate and correct if needed
     if (!validateSetpoint(params.setpoint)) params.setpoint = DEFAULT_SETPOINT;
     if (!validateCorrectionFactor(params.correctionFactor)) params.correctionFactor = DEFAULT_CORRECTION_FACTOR;
     if (!validateCutSpeed(params.cutSpeed)) params.cutSpeed = DEFAULT_CUT_SPEED;
@@ -114,56 +114,56 @@ void EEPROMManager::scheduleSaveKd(double value) {
 
 void EEPROMManager::update() {
     unsigned long currentTime = millis();
-    
-    // Vérifier le délai minimum entre écritures EEPROM
+
+    // Check minimum delay between EEPROM writes
     if (currentTime - lastEEPROMWrite < EEPROM_WRITE_INTERVAL) {
         return;
     }
-    
+
     bool wrote = false;
-    
+
     if (saveSetpointFlag) {
         writeFloat(EEPROM_SETPOINT_ADDR, pendingSetpoint);
         saveSetpointFlag = false;
         wrote = true;
     }
-    
+
     if (saveCorrectionFactorFlag) {
         writeFloat(EEPROM_CORRECTION_FACTOR_ADDR, pendingCorrectionFactor);
         saveCorrectionFactorFlag = false;
         wrote = true;
     }
-    
+
     if (saveCutSpeedFlag) {
         writeFloat(EEPROM_CUT_SPEED_ADDR, pendingCutSpeed);
         saveCutSpeedFlag = false;
         wrote = true;
     }
-    
+
     if (saveThresholdRatioFlag) {
         writeFloat(EEPROM_THRESHOLD_RATIO_ADDR, pendingThresholdRatio);
         saveThresholdRatioFlag = false;
         wrote = true;
     }
-    
+
     if (saveKpFlag) {
         writeDouble(EEPROM_KP_ADDR, pendingKp);
         saveKpFlag = false;
         wrote = true;
     }
-    
+
     if (saveKiFlag) {
         writeDouble(EEPROM_KI_ADDR, pendingKi);
         saveKiFlag = false;
         wrote = true;
     }
-    
+
     if (saveKdFlag) {
         writeDouble(EEPROM_KD_ADDR, pendingKd);
         saveKdFlag = false;
         wrote = true;
     }
-    
+
     if (wrote) {
         lastEEPROMWrite = currentTime;
     }
@@ -204,7 +204,7 @@ bool EEPROMManager::validateKd(double value) {
     return !isnan(value) && value >= 0.0 && value <= KD_MAX;
 }
 
-// Méthodes privées
+// Private methods
 void EEPROMManager::writeFloat(int address, float value) {
     EEPROM.put(address, value);
 }

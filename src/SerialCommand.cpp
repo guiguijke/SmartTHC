@@ -1,7 +1,7 @@
 /**
- * SmartTHC - Gestionnaire de commandes série
- * 
- * Implémentation des commandes série et logging
+ * SmartTHC - Serial Command Handler
+ *
+ * Serial commands and logging implementation
  */
 
 #include "SerialCommand.h"
@@ -28,15 +28,15 @@ void SerialCommand::update(EEPROMManager* eeprom, THCController* thc, SpeedMonit
     }
 }
 
-void SerialCommand::processCommand(String& command, EEPROMManager* eeprom, 
+void SerialCommand::processCommand(String& command, EEPROMManager* eeprom,
                                    THCController* thc, SpeedMonitor* speed) {
     if (command == "RESET_EEPROM") {
         eeprom->resetToDefaults();
-        
-        // Recharger les paramètres
+
+        // Reload parameters
         THCParameters params;
         eeprom->loadParameters(params);
-        
+
         thc->setSetpoint(params.setpoint);
         thc->setCorrectionFactor(params.correctionFactor);
         speed->setCutSpeed(params.cutSpeed);
@@ -44,7 +44,7 @@ void SerialCommand::processCommand(String& command, EEPROMManager* eeprom,
         thc->setKp(params.kp);
         thc->setKi(params.ki);
         thc->setKd(params.kd);
-        
+
         Serial.println("EEPROM reset via serial command");
     }
     else if (command == "STATUS") {
@@ -59,14 +59,14 @@ void SerialCommand::logStatus(unsigned long currentTime, THCController* thc, Spe
     if (currentTime - lastLogTime < LOG_INTERVAL) {
         return;
     }
-    
+
     bool plasmaPinLow = thc->isPlasmaActive();
     bool thcOff = thc->isTHCOff();
     bool enablePinLow = thc->isEnableLow();
     bool arcDetected = thc->isArcDetected();
     bool thcActive = thc->isTHCActive();
     bool antiDiveActive = thc->isAntiDiveActive();
-    
+
     if (plasmaPinLow) {
         Serial.print("TGT / Torch speed: ");
         Serial.print(speed->getCutSpeed());
@@ -78,7 +78,7 @@ void SerialCommand::logStatus(unsigned long currentTime, THCController* thc, Spe
         Serial.print(speed->getThresholdSpeed());
         Serial.print(" ");
         Serial.println(SPEED_UNIT);
-        
+
         Serial.print("PLASMA_PIN: LOW | ENABLE_PIN: ");
         Serial.print(enablePinLow ? "LOW" : "HIGH");
         Serial.print(" | Stabilization: ");
@@ -91,15 +91,15 @@ void SerialCommand::logStatus(unsigned long currentTime, THCController* thc, Spe
         Serial.print(thcOff ? "ACTIVE" : "INACTIVE");
         Serial.print(" | Speed OK: ");
         Serial.println(speed->isSpeedOK() ? "Yes" : "No");
-        
+
         Serial.print("V | Fast: ");
         Serial.print(thc->getFastVoltage());
         Serial.print("V | Slow: ");
         Serial.print(thc->getSlowVoltage());
         Serial.print("V | Anti-dive: ");
         Serial.println(antiDiveActive ? "Active" : "Inactive");
-        
-        // Log si THC inactif
+
+        // Log if THC inactive
         if (!thcActive) {
             Serial.print("Reason THC inactive: ");
             if (!thcOff) Serial.println("THC_OFF_PIN LOW");
@@ -121,7 +121,7 @@ void SerialCommand::logStatus(unsigned long currentTime, THCController* thc, Spe
         Serial.print("V | PLASMA_PIN: HIGH | THC_SIG: ");
         Serial.println(thcOff ? "ACTIVE" : "INACTIVE");
     }
-    
+
     lastLogTime = currentTime;
 }
 

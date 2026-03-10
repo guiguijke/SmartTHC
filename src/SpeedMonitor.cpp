@@ -1,12 +1,12 @@
 /**
- * SmartTHC - Moniteur de vitesse
- * 
- * Implémentation du calcul de vitesse torche
+ * SmartTHC - Speed Monitor
+ *
+ * Torch speed calculation implementation
  */
 
 #include "SpeedMonitor.h"
 
-// Définitions des membres statiques
+// Static member definitions
 volatile uint16_t SpeedMonitor::stepCountX = 0;
 volatile uint16_t SpeedMonitor::stepCountY = 0;
 volatile unsigned long SpeedMonitor::lastStepXTime = 0;
@@ -27,12 +27,12 @@ SpeedMonitor::SpeedMonitor()
     , positionHistoryIndex(0)
     , lastPositionRecordTime(0)
 {
-    // Initialiser le tableau de filtrage
+    // Initialize filter array
     for (int i = 0; i < SPEED_FILTER_SIZE; i++) {
         speedReadings[i] = 0.0f;
     }
-    
-    // Initialiser l'historique de position
+
+    // Initialize position history
     for (int i = 0; i < POSITION_HISTORY_SIZE; i++) {
         positionHistory[i].time = 0;
         positionHistory[i].position = 0;
@@ -42,17 +42,14 @@ SpeedMonitor::SpeedMonitor()
 void SpeedMonitor::begin() {
     pinMode(STEP_X_PIN, INPUT);
     pinMode(STEP_Y_PIN, INPUT);
-    
-    // Attacher les interruptions
+
+    // Attach interrupts
     attachInterrupt(digitalPinToInterrupt(STEP_X_PIN), onStepX, FALLING);
     attachInterrupt(digitalPinToInterrupt(STEP_Y_PIN), onStepY, FALLING);
 }
 
 void SpeedMonitor::update(unsigned long currentTime) {
-    // Enregistrer l'historique de position si nécessaire
-    // (la position actuelle doit être passée depuis l'extérieur)
-    
-    // Calculer la vitesse à intervalles réguliers
+    // Calculate speed at regular intervals
     if (currentTime - lastSpeedTime >= SPEED_INTERVAL) {
         calculateSpeed(currentTime);
     }
@@ -73,38 +70,38 @@ void SpeedMonitor::setThresholdRatio(float ratio) {
 }
 
 void SpeedMonitor::calculateSpeed(unsigned long currentTime) {
-    // Récupérer et réinitialiser les compteurs (section critique)
+    // Retrieve and reset counters (critical section)
     noInterrupts();
     uint16_t tempX = stepCountX;
     uint16_t tempY = stepCountY;
     stepCountX = 0;
     stepCountY = 0;
     interrupts();
-    
+
     totalStepX += tempX;
     totalStepY += tempY;
-    
-    // Calculer la vitesse
+
+    // Calculate speed
     float torchSpeed = 0.0f;
     unsigned long deltaTime = currentTime - lastSpeedTime;
-    
+
     if ((tempX + tempY) >= MIN_STEPS && deltaTime > 0) {
         float distanceX = tempX * DIST_PER_STEP_X;
         float distanceY = tempY * DIST_PER_STEP_Y;
         float totalDistance = sqrt(distanceX * distanceX + distanceY * distanceY);
         torchSpeed = (totalDistance / (deltaTime / 1000.0f)) * 60.0f * SPEED_CORRECTION;
     }
-    
-    // Appliquer le filtre
+
+    // Apply filter
     sumSpeedReadings -= speedReadings[speedReadingIndex];
     speedReadings[speedReadingIndex] = torchSpeed;
     sumSpeedReadings += torchSpeed;
     speedReadingIndex = (speedReadingIndex + 1) % SPEED_FILTER_SIZE;
     filteredSpeed = sumSpeedReadings / SPEED_FILTER_SIZE;
-    
+
     if (filteredSpeed < 0) filteredSpeed = 0.0f;
-    
-    // Reset si timeout
+
+    // Reset on timeout
     if ((tempX + tempY) == 0 && (currentTime - lastStepTime > STEP_TIMEOUT)) {
         totalStepX = 0;
         totalStepY = 0;
@@ -114,36 +111,36 @@ void SpeedMonitor::calculateSpeed(unsigned long currentTime) {
         sumSpeedReadings = 0.0f;
         filteredSpeed = 0.0f;
     }
-    
+
     if ((tempX + tempY) > 0) {
         lastStepTime = currentTime;
     }
-    
-    // Mettre à jour l'état de vitesse
+
+    // Update speed state
     if (!speedState && filteredSpeed >= thresholdSpeed) {
         speedState = true;
     } else if (speedState && filteredSpeed < thresholdSpeed) {
         speedState = false;
     }
-    
+
     lastSpeedTime = currentTime;
 }
 
 long SpeedMonitor::getPositionAtTime(unsigned long targetTime, long defaultPos) const {
     long closestPos = defaultPos;
     unsigned long closestDiff = 0xFFFFFFFFUL;
-    
+
     for (int i = 0; i < POSITION_HISTORY_SIZE; i++) {
         unsigned long hTime = positionHistory[i].time;
         if (hTime == 0) continue;
-        
+
         unsigned long diff = (unsigned long)abs((long)targetTime - (long)hTime);
         if (diff < closestDiff) {
             closestDiff = diff;
             closestPos = positionHistory[i].position;
         }
     }
-    
+
     return closestPos;
 }
 
@@ -160,7 +157,7 @@ void SpeedMonitor::updatePositionHistory(unsigned long currentTime, long positio
     recordPosition(currentTime, position);
 }
 
-// Handlers d'interruption
+// Interrupt handlers
 void SpeedMonitor::onStepX() {
     unsigned long now = micros();
     if (now - lastStepXTime > DEBOUNCE_US) {

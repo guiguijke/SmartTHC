@@ -1,7 +1,7 @@
 /**
  * SmartTHC - Main
- * 
- * Orchestration du système THC modulaire
+ *
+ * Modular THC system orchestration
  * Arduino Uno R4 Minima
  */
 
@@ -16,7 +16,7 @@
 #include "SerialCommand.h"
 
 // ============================================================================
-// INSTANCES DES MODULES
+// MODULE INSTANCES
 // ============================================================================
 
 EncoderManager encoder;
@@ -27,7 +27,7 @@ DisplayManager display;
 SerialCommand serialCmd;
 
 // ============================================================================
-// VARIABLES GLOBALES
+// GLOBAL VARIABLES
 // ============================================================================
 
 int currentScreen = 0;
@@ -38,7 +38,7 @@ float tempCorrectionFactor = DEFAULT_CORRECTION_FACTOR;
 unsigned long lastDisplayTime = 0;
 unsigned long lastPidTime = 0;
 
-// Stats boucle
+// Loop stats
 unsigned long loopStartTime;
 unsigned long loopExecutionTimeSum = 0;
 unsigned int loopCount = 0;
@@ -57,64 +57,64 @@ void notifyAntiDiveIfNeeded();
 // ============================================================================
 
 void setup() {
-    // Initialisation série
+    // Serial init
     serialCmd.begin(115200);
-    
+
     Serial.println("SmartTHC - Initializing...");
-    
-    // Initialisation EEPROM
+
+    // EEPROM init
     eeprom.begin();
-    
-    // Charger les paramètres
+
+    // Load parameters
     THCParameters params;
     eeprom.loadParameters(params);
-    
-    // Appliquer les paramètres
+
+    // Apply parameters
     thc.setSetpoint(params.setpoint);
     thc.setCorrectionFactor(params.correctionFactor);
     tempCorrectionFactor = params.correctionFactor;
-    
+
     speedMonitor.setCutSpeed(params.cutSpeed);
     speedMonitor.setThresholdRatio(params.thresholdRatio);
-    
+
     thc.setKp(params.kp);
     thc.setKi(params.ki);
     thc.setKd(params.kd);
-    
-    // Initialisation des modules
+
+    // Module init
     encoder.begin();
     speedMonitor.begin();
     thc.begin();
     display.begin();
-    
-    // Watchdog Timer - reboot auto si le MCU se bloque (EMI plasma)
+
+    // Watchdog Timer - auto reboot if MCU hangs (plasma EMI)
     WDT.begin(WDT_TIMEOUT_128);
 
     Serial.println("SmartTHC - Ready!");
 }
 
 // ============================================================================
-// LOOP PRINCIPALE
+// MAIN LOOP
 // ============================================================================
 
 void loop() {
     WDT.refresh();
     loopStartTime = micros();
     unsigned long currentTime = millis();
-    
+
     // ------------------------------------------------------------------------
-    // 1. Mise à jour de l'encodeur (lecture rotation + bouton)
+    // 1. Encoder update (rotation + button)
     // ------------------------------------------------------------------------
     encoder.update();
-    
+
     // ------------------------------------------------------------------------
-    // 2. Gestion du bouton (changement d'écran)
+    // 2. Button handling (screen change)
     // ------------------------------------------------------------------------
     if (encoder.isButtonClicked()) {
         prevScreen = currentScreen;
         currentScreen = (currentScreen + 1) % NB_SCREENS;
-        
-        // Entrée/sortie de l'écran de correction temporaire
+
+        // Enter/exit temporary correction screen
         if (currentScreen == 2 && prevScreen != 2) {
             tempCorrectionFactor = thc.getCorrectionFactor();
             Serial.println("Entering temporary voltage_correction_factor adjustment mode");
@@ -127,68 +127,68 @@ void loop() {
             }
         }
     }
-    
+
     // ------------------------------------------------------------------------
-    // 3. Gestion de l'encodeur rotatif (ajustement des paramètres)
+    // 3. Rotary encoder handling (parameter adjustment)
     // ------------------------------------------------------------------------
     int encoderDelta = encoder.getDelta();
     if (encoderDelta != 0) {
         handleParameterAdjustment(encoderDelta);
     }
-    
+
     // ------------------------------------------------------------------------
-    // 4. Mise à jour du moniteur de vitesse
+    // 4. Speed monitor update
     // ------------------------------------------------------------------------
     speedMonitor.update(currentTime);
-    
-    // Enregistrer la position pour l'anti-dive
+
+    // Record position for anti-dive
     speedMonitor.recordPosition(currentTime, thc.getMotorPosition());
-    
+
     // ------------------------------------------------------------------------
-    // 5. Mise à jour du contrôleur THC (PID, anti-dive, moteur)
+    // 5. THC controller update (PID, anti-dive, motor)
     // ------------------------------------------------------------------------
-    // Exécuter à 1kHz
+    // Run at 1kHz
     unsigned long currentMicros = micros();
     if (currentMicros - lastPidTime >= PID_INTERVAL_US) {
         thc.update(currentTime);
         lastPidTime = currentMicros;
-        
-        // Notifier l'affichage si anti-dive vient de s'activer
+
+        // Notify display if anti-dive just activated
         notifyAntiDiveIfNeeded();
     }
-    
-    // Faire tourner le moteur aussi souvent que possible
+
+    // Run motor as often as possible
     thc.runMotor();
-    
+
     // ------------------------------------------------------------------------
-    // 6. Mise à jour de l'affichage LCD
+    // 6. LCD display update
     // ------------------------------------------------------------------------
     if (currentTime - lastDisplayTime >= DISPLAY_INTERVAL) {
-        display.update(currentTime, currentScreen, &thc, &speedMonitor, 
+        display.update(currentTime, currentScreen, &thc, &speedMonitor,
                        tempCorrectionFactor, encoderDelta);
         lastDisplayTime = currentTime;
     }
-    
+
     // ------------------------------------------------------------------------
-    // 7. Traitement des commandes série et logging
+    // 7. Serial command processing and logging
     // ------------------------------------------------------------------------
     serialCmd.update(&eeprom, &thc, &speedMonitor);
     serialCmd.logStatus(currentTime, &thc, &speedMonitor);
-    
+
     // ------------------------------------------------------------------------
-    // 8. Sauvegardes EEPROM différées
+    // 8. Deferred EEPROM saves
     // ------------------------------------------------------------------------
     eeprom.update();
-    
+
     // ------------------------------------------------------------------------
-    // 9. Stats d'exécution
+    // 9. Execution stats
     // ------------------------------------------------------------------------
     unsigned long loopEndTime = micros();
     unsigned long loopExecutionTime = loopEndTime - loopStartTime;
     loopExecutionTimeSum += loopExecutionTime;
     loopCount++;
-    
-    // Log des stats toutes les 10 secondes
+
+    // Log stats every 10 seconds
     if (currentTime % LOOP_LOG_INTERVAL < DISPLAY_INTERVAL && loopCount > 0) {
         unsigned long avgLoopTime = loopExecutionTimeSum / loopCount;
         float loopFrequency = 1000000.0f / avgLoopTime;
@@ -199,7 +199,7 @@ void loop() {
 }
 
 // ============================================================================
-// FONCTIONS AUXILIAIRES
+// HELPER FUNCTIONS
 // ============================================================================
 
 void handleParameterAdjustment(int delta) {
@@ -212,11 +212,11 @@ void handleParameterAdjustment(int delta) {
             eeprom.scheduleSaveSetpoint(newSetpoint);
             break;
         }
-        case 2: { // Correction factor (temporaire)
+        case 2: { // Correction factor (temporary)
             tempCorrectionFactor += delta * 0.01f;
-            if (tempCorrectionFactor < CORRECTION_FACTOR_MIN) 
+            if (tempCorrectionFactor < CORRECTION_FACTOR_MIN)
                 tempCorrectionFactor = CORRECTION_FACTOR_MIN;
-            if (tempCorrectionFactor > CORRECTION_FACTOR_MAX) 
+            if (tempCorrectionFactor > CORRECTION_FACTOR_MAX)
                 tempCorrectionFactor = CORRECTION_FACTOR_MAX;
             break;
         }
@@ -256,7 +256,7 @@ void handleParameterAdjustment(int delta) {
 }
 
 void notifyAntiDiveIfNeeded() {
-    // Vérifier si l'anti-dive vient de s'activer
+    // Check if anti-dive just activated
     AntiDiveEvent event = thc.getAntiDiveEvent();
     if (event.justActivated) {
         display.notifyAntiDiveActivated();

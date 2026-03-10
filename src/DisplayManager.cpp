@@ -1,14 +1,14 @@
 /**
- * SmartTHC - Gestionnaire d'affichage
- * 
- * Implémentation de l'affichage LCD avec message Anti-Dive clignotant
+ * SmartTHC - Display Manager
+ *
+ * LCD display implementation with blinking Anti-Dive message
  */
 
 #include "DisplayManager.h"
 #include "THCController.h"
 #include "SpeedMonitor.h"
 
-// Caractères personnalisés
+// Custom characters
 static byte enableChar[8] = {0b00000, 0b00000, 0b00000, 0b11111, 0b11111, 0b11111, 0b11111, 0b00000};
 static byte plasmaChar[8] = {0b11111, 0b11111, 0b11111, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000};
 static byte thcActifChar[8] = {0b11111, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11111, 0b00000};
@@ -44,7 +44,7 @@ void DisplayManager::begin() {
     lcd.init();
     lcd.begin(LCD_COLUMNS, LCD_ROWS);
     lcd.backlight();
-    
+
     createCustomCharacters();
 }
 
@@ -58,20 +58,20 @@ void DisplayManager::createCustomCharacters() {
     lcd.createChar(CHAR_ENABLE_ALL, enableall);
 }
 
-void DisplayManager::update(unsigned long currentTime, int currentScreen, 
+void DisplayManager::update(unsigned long currentTime, int currentScreen,
                             THCController* thc, SpeedMonitor* speedMonitor,
                             float tempCorrectionFactor, int encoderDelta) {
-    // Mettre à jour l'état du message Anti-Dive
+    // Update Anti-Dive message state
     updateAntiDiveDisplay(currentTime);
-    
-    // Changement d'écran
+
+    // Screen change
     if (currentScreen != lastScreen) {
         lcd.clear();
         lastScreen = currentScreen;
         resetCachedValues();
     }
-    
-    // Dessiner l'écran approprié
+
+    // Draw appropriate screen
     switch (currentScreen) {
         case 0:
             drawScreen0(thc, speedMonitor);
@@ -110,35 +110,35 @@ void DisplayManager::notifyAntiDiveActivated() {
 void DisplayManager::updateAntiDiveDisplay(unsigned long currentTime) {
     switch (adState) {
         case AD_DISPLAY_IDLE:
-            // Rien à faire
+            // Nothing to do
             break;
-            
+
         case AD_DISPLAY_ACTIVE:
-            // Vérifier si on doit encore afficher
+            // Check if display time has elapsed
             if (currentTime - adStartTime >= ANTI_DIVE_DISPLAY_DURATION) {
                 adState = AD_DISPLAY_IDLE;
-                // Forcer le rafraîchissement de la zone vitesse
+                // Force speed zone refresh
                 lastSpeed = -1;
             } else {
-                // Passer en mode clignotement
+                // Switch to blink mode
                 adState = AD_DISPLAY_BLINK_ON;
                 lastBlinkTime = currentTime;
             }
             break;
-            
+
         case AD_DISPLAY_BLINK_ON:
             if (currentTime - lastBlinkTime >= ANTI_DIVE_BLINK_INTERVAL) {
                 adState = AD_DISPLAY_BLINK_OFF;
                 lastBlinkTime = currentTime;
                 blinkVisible = false;
-                // Forcer rafraîchissement
+                // Force refresh
                 lastSpeed = -1;
             }
             break;
-            
+
         case AD_DISPLAY_BLINK_OFF:
             if (currentTime - lastBlinkTime >= ANTI_DIVE_BLINK_INTERVAL) {
-                // Vérifier si le temps total est écoulé
+                // Check if total time has elapsed
                 if (currentTime - adStartTime >= ANTI_DIVE_DISPLAY_DURATION) {
                     adState = AD_DISPLAY_IDLE;
                     blinkVisible = true;
@@ -147,7 +147,7 @@ void DisplayManager::updateAntiDiveDisplay(unsigned long currentTime) {
                     blinkVisible = true;
                 }
                 lastBlinkTime = currentTime;
-                // Forcer rafraîchissement
+                // Force refresh
                 lastSpeed = -1;
             }
             break;
@@ -155,8 +155,8 @@ void DisplayManager::updateAntiDiveDisplay(unsigned long currentTime) {
 }
 
 bool DisplayManager::shouldShowAntiDiveMessage(unsigned long currentTime) {
-    return (adState == AD_DISPLAY_ACTIVE || 
-            adState == AD_DISPLAY_BLINK_ON || 
+    return (adState == AD_DISPLAY_ACTIVE ||
+            adState == AD_DISPLAY_BLINK_ON ||
             (adState == AD_DISPLAY_BLINK_OFF && !blinkVisible));
 }
 
@@ -170,31 +170,31 @@ void DisplayManager::drawAntiDiveMessage() {
 }
 
 void DisplayManager::clearAntiDiveMessage() {
-    // Rien à faire, géré dans drawScreen0
+    // Nothing to do, handled in drawScreen0
 }
 
 void DisplayManager::drawScreen0(THCController* thc, SpeedMonitor* speedMonitor) {
-    // Ligne 0 : "Act: XXX.X V SPD"
+    // Line 0: "Act: XXX.X V SPD"
     float actualVoltage = thc->getFastVoltage();
     if (actualVoltage != lastActualVoltage) {
         lcd.setCursor(0, 0);
         lcd.print("Act:");
         lcd.setCursor(4, 0);
         char vBuf[8];
-        dtostrf(actualVoltage, 5, 1, vBuf);  // Largeur fixe 5 chars : "  9.4" ou "123.4"
+        dtostrf(actualVoltage, 5, 1, vBuf);  // Fixed width 5 chars: "  9.4" or "123.4"
         lcd.print(vBuf);
-        lcd.print("V ");  // V + espace pour effacer un éventuel résidu
+        lcd.print("V ");  // V + space to clear any leftover
         lastActualVoltage = actualVoltage;
     }
-    
-    // Zone vitesse ou message Anti-Dive
+
+    // Speed zone or Anti-Dive message
     if (adState != AD_DISPLAY_IDLE) {
         drawAntiDiveMessage();
     } else {
-        // Affichage normal de la vitesse
+        // Normal speed display
         int displayedSpeed = (int)(speedMonitor->getFilteredSpeed());
         if (displayedSpeed > 9999) displayedSpeed = 9999;
-        
+
         if (speedMonitor->getFilteredSpeed() < 0.1f) {
             if (lastSpeed != 0) {
                 lcd.setCursor(12, 0);
@@ -209,21 +209,21 @@ void DisplayManager::drawScreen0(THCController* thc, SpeedMonitor* speedMonitor)
             lastSpeed = displayedSpeed;
         }
     }
-    
-    // Ligne 1 : "Tgt: XXX.X V [status]"
+
+    // Line 1: "Tgt: XXX.X V [status]"
     float setpoint = thc->getSetpoint();
     if (setpoint != lastSetpoint) {
         lcd.setCursor(0, 1);
         lcd.print("Tgt:");
         lcd.setCursor(4, 1);
         char sBuf[8];
-        dtostrf(setpoint, 5, 1, sBuf);  // Largeur fixe 5 chars
+        dtostrf(setpoint, 5, 1, sBuf);  // Fixed width 5 chars
         lcd.print(sBuf);
         lcd.print("V");
         lastSetpoint = setpoint;
     }
-    
-    // Icônes de status
+
+    // Status icons
     drawStatusIcons(thc);
 }
 
@@ -233,17 +233,17 @@ void DisplayManager::drawStatusIcons(THCController* thc) {
     bool thcActive = thc->isTHCActive();
     bool thcOff = thc->isTHCOff();
     double output = thc->getPidOutput();
-    
-    if (enableLow != lastEnableLow || plasmaLow != lastPlasmaLow || 
-        thcActive != lastThcActive || thcOff != lastThcOff || 
+
+    if (enableLow != lastEnableLow || plasmaLow != lastPlasmaLow ||
+        thcActive != lastThcActive || thcOff != lastThcOff ||
         output != lastOutput) {
-        
+
         lcd.setCursor(11, 1);
         // Enable
         lcd.write(enableLow ? CHAR_ENABLE : (byte)'O');
-        
+
         lcd.setCursor(12, 1);
-        // Direction THC
+        // THC direction
         if (thcActive) {
             if (output > 10) {
                 lcd.write(CHAR_ARROW_UP);
@@ -255,9 +255,9 @@ void DisplayManager::drawStatusIcons(THCController* thc) {
         } else {
             lcd.print(" ");
         }
-        
+
         lcd.setCursor(13, 1);
-        // THC off/actif
+        // THC off/active
         if (thcOff && !thcActive) {
             lcd.print("o");
         } else if (thcOff && thcActive) {
@@ -265,7 +265,7 @@ void DisplayManager::drawStatusIcons(THCController* thc) {
         } else {
             lcd.print("-");
         }
-        
+
         lcd.setCursor(14, 1);
         // Plasma
         if (plasmaLow) {
@@ -273,7 +273,7 @@ void DisplayManager::drawStatusIcons(THCController* thc) {
         } else {
             lcd.print(" ");
         }
-        
+
         lastEnableLow = enableLow;
         lastPlasmaLow = plasmaLow;
         lastThcActive = thcActive;
@@ -290,7 +290,7 @@ void DisplayManager::drawScreen1(THCController* thc) {
 }
 
 void DisplayManager::drawScreen2(THCController* thc, float tempCorrectionFactor) {
-    // Ligne 0 : "V Corr: XX.XX"
+    // Line 0: "V Corr: XX.XX"
     if (tempCorrectionFactor != lastTempCorrectionFactor) {
         lcd.setCursor(0, 0);
         lcd.print("V Corr:     ");
@@ -298,11 +298,11 @@ void DisplayManager::drawScreen2(THCController* thc, float tempCorrectionFactor)
         lcd.print(tempCorrectionFactor, 2);
         lastTempCorrectionFactor = tempCorrectionFactor;
     }
-    
-    // Ligne 1 : "Base:XXX.X Adj:XXX.X"
+
+    // Line 1: "Base:XXX.X Adj:XXX.X"
     float uncorrected = thc->getUncorrectedFast();
     float adjusted = uncorrected * tempCorrectionFactor;
-    
+
     if (uncorrected != lastUncorrectedFast || adjusted != lastAdjustedVoltage) {
         lcd.setCursor(0, 1);
         lcd.print("Base:    Adj:   ");
@@ -322,7 +322,7 @@ void DisplayManager::drawScreen3(SpeedMonitor* speedMonitor) {
     char buffer[5];
     snprintf(buffer, sizeof(buffer), "%4.0f", speedMonitor->getCutSpeed());
     lcd.print(buffer);
-    
+
     lcd.setCursor(0, 1);
     lcd.print("Unit: ");
     lcd.print(SPEED_UNIT_LONG);
