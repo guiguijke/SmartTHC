@@ -11,6 +11,7 @@ Licensed under the [GNU General Public License v3 (GPL v3)](#license).
 - **PID-based height control** running at 1kHz for responsive torch adjustment
 - **Anti-dive protection** with adaptive timing — prevents torch diving on corners and small features
 - **THC_OFF re-stabilization** (300ms delay) — prevents torch dive on small oblong holes
+- **Motion-gated THC activation** — THC starts only after confirmed XY cut motion, with a configurable post-motion delay to avoid pierce-phase triggering
 - **Watchdog Timer (WDT)** — auto-reboot on EMI-induced hangs in plasma environment
 - **8-screen LCD menu** with rotary encoder navigation (setpoint, PID tuning, speed, correction factor)
 - **Real-time monitoring** — arc voltage, torch speed, and system status on 16x2 LCD
@@ -29,7 +30,7 @@ Modular design — each subsystem is a separate class, orchestrated by `main.cpp
 | **THCController** | PID control, voltage ADC reading, anti-dive protection, stepper motor commands |
 | **DisplayManager** | 16x2 I2C LCD with 8 screens, selective redraw, blinking anti-dive message |
 | **EncoderManager** | KY-040 rotary encoder with state machine debouncing |
-| **SpeedMonitor** | Torch speed from X/Y step interrupts, position history for anti-dive |
+| **SpeedMonitor** | Torch speed from X/Y step interrupts, hysteresis-based motion detection, and cut-start confirmation for THC gating |
 | **EEPROMManager** | Persistent storage of 7 parameters with deferred writes and validation |
 | **SerialCommand** | Debug serial interface, status logging, `RESET_EEPROM` command |
 | **Config.h** | All pin definitions, timing intervals, defaults — zero magic numbers |
@@ -78,12 +79,17 @@ All constants are centralized in `src/Config.h`. Key parameters:
 |---|---|---|
 | `STABILIZATION_DELAY` | 750ms | Plasma stabilization before PID activates |
 | `THC_ON_RESTAB_DELAY` | 300ms | Re-stabilization after THC_OFF → THC_ON |
+| `CUT_MOTION_CONFIRM_DELAY` | 200ms | Continuous XY motion validation before cut is considered started |
+| `THC_AFTER_CUT_START_DELAY` | 500ms | Additional fixed delay after confirmed cut start before THC can activate |
+| `CUT_SPEED_HYSTERESIS_RATIO` | 0.1 | Speed threshold hysteresis ratio to avoid ON/OFF chatter |
 | `DEFAULT_SETPOINT` | 110V | Target arc voltage |
 | `DEFAULT_KP / KI / KD` | 30 / 7.5 / 2.0 | PID coefficients |
 | `DROP_THRESHOLD` | 5V | Anti-dive activation threshold |
 | `STEPPER_DEADZONE` | 1V | PID dead zone |
 
 Mechanical constants (`STEPS_PER_MM_X/Y/Z`, `DEFAULT_VOLTAGEDIVIDER`) are set as build flags in `platformio.ini`.
+
+- **THC timing model** combines plasma stabilization, THC_OFF re-stabilization, confirmed XY motion, and a fixed post-motion delay before PID engagement
 
 ## Dependencies
 

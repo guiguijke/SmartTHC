@@ -32,10 +32,10 @@ Cross-compilation environments for Raspberry Pi also available: `uno_r4_minima_R
 
 | Module | File | Role |
 |---|---|---|
-| **THCController** | `src/THCController.h/cpp` | PID control, voltage ADC reading (dual-filter: fast EMA + slow circular buffer with 10x oversampling), anti-dive protection, stepper motor commands |
+| **THCController** | `src/THCController.h/cpp` | PID control, voltage ADC reading (dual-filter: fast EMA + slow circular buffer with 10x oversampling), anti-dive protection, stepper motor commands, and motion-gated THC activation |
 | **DisplayManager** | `src/DisplayManager.h/cpp` | 16x2 I2C LCD with 8 menu screens (setpoint, PID tuning, speed, correction factor), selective redraw to avoid flicker |
 | **EncoderManager** | `src/EncoderManager.h/cpp` | KY-040 rotary encoder with state machine debouncing (IDLE→PRESSED→HELD→RELEASED) |
-| **SpeedMonitor** | `src/SpeedMonitor.h/cpp` | Torch travel speed from X/Y step pulse interrupts, position history buffer for anti-dive |
+| **SpeedMonitor** | `src/SpeedMonitor.h/cpp` | Torch travel speed from X/Y step pulse interrupts, hysteresis-based cut-motion detection, and position history buffer for anti-dive |
 | **EEPROMManager** | `src/EEPROMManager.h/cpp` | Persistent storage of 7 parameters with deferred writes (1s batching) and validation |
 | **SerialCommand** | `src/SerialCommand.h/cpp` | Debug serial interface (115200 baud), status logging, `RESET_EEPROM` command |
 | **Config.h** | `src/Config.h` | All pin definitions, timing intervals, default PID coefficients, thresholds — no magic numbers elsewhere |
@@ -48,6 +48,7 @@ Cross-compilation environments for Raspberry Pi also available: `uno_r4_minima_R
 - **Mechanical constants** (steps/mm, voltage divider) are build flags in `platformio.ini`
 - **Unit system** is compile-time: `USE_IMPERIAL=0` (metric) or `1` (imperial)
 - PID runs at **1kHz**; display updates at **250ms**; speed calc at **50ms**
+- THC activation includes **motion gating** via `CUT_MOTION_CONFIRM_DELAY`, `THC_AFTER_CUT_START_DELAY`, and `CUT_SPEED_HYSTERESIS_RATIO`
 
 ## Conventions
 

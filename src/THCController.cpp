@@ -35,6 +35,7 @@ THCController::THCController()
     , plasmaActiveTime(0)
     , thcActive(false)
     , lastThcActive(false)
+    , speedMonitor(nullptr)
     , prevThcOff(false)
     , thcOnStabilized(true)
     , thcOnTransitionTime(0)
@@ -107,6 +108,10 @@ void THCController::update(unsigned long currentTime) {
 
 void THCController::runMotor() {
     stepper.run();
+}
+
+void THCController::setSpeedMonitor(SpeedMonitor* monitor) {
+    speedMonitor = monitor;
 }
 
 void THCController::readAndFilterVoltage(unsigned long currentTime) {
@@ -237,9 +242,19 @@ void THCController::updateTHCState(unsigned long currentTime) {
     }
     prevThcOff = thcOff;
 
+    bool cutMotionGateReady = true;
+    if (speedMonitor != nullptr) {
+        if (currentTime >= THC_AFTER_CUT_START_DELAY) {
+            unsigned long requiredCutStartTime = currentTime - THC_AFTER_CUT_START_DELAY;
+            cutMotionGateReady = speedMonitor->hasCutMotionStableSince(requiredCutStartTime);
+        } else {
+            cutMotionGateReady = false;
+        }
+    }
+
     // Determine new THC state (thcOnStabilized prevents immediate activation)
     bool thcActiveNew = thcOff && thcOnStabilized && enablePinLow &&
-                        plasmaPinLow && plasmaStabilized && arcDetected;
+                        plasmaPinLow && plasmaStabilized && arcDetected && cutMotionGateReady;
 
     // PID start/stop handling
     if (thcActiveNew != lastThcActive) {

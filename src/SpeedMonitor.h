@@ -38,6 +38,9 @@ public:
 
     // Speed state
     bool isSpeedOK() const { return speedState; }
+    bool isCutMotionDetected() const { return cutMotionDetected; }
+    bool hasCutMotionStableSince(unsigned long timestamp) const;
+    unsigned long getCutMotionStartTime() const { return cutMotionStartTime; }
 
     // Position history access (for anti-dive)
     long getPositionAtTime(unsigned long targetTime, long defaultPos) const;
@@ -60,6 +63,10 @@ private:
     float thresholdSpeed;
     float filteredSpeed;
     bool speedState;
+    bool cutMotionDetected;
+    bool motionPending;
+    unsigned long motionPendingStartTime;
+    unsigned long cutMotionStartTime;
 
     // Filter
     float speedReadings[SPEED_FILTER_SIZE];

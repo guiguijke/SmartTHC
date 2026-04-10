@@ -127,6 +127,10 @@ const unsigned long THC_ON_RESTAB_DELAY = 300;      // ms - re-stabilization del
 const unsigned long STEP_TIMEOUT = 500;             // ms - step timeout
 const unsigned long DEBOUNCE_US = 3;                // us - interrupt debounce
 
+const unsigned long CUT_MOTION_CONFIRM_DELAY = 200;
+const unsigned long THC_AFTER_CUT_START_DELAY = 500;
+const float CUT_SPEED_HYSTERESIS_RATIO = 0.1f;
+
 // PID timing
 const unsigned long PID_INTERVAL_US = 1000;         // us - 1kHz
 

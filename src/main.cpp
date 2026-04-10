@@ -85,6 +85,7 @@ void setup() {
     encoder.begin();
     speedMonitor.begin();
     thc.begin();
+    thc.setSpeedMonitor(&speedMonitor);
     display.begin();
 
     // Watchdog Timer - auto reboot if MCU hangs (plasma EMI)

@@ -31,6 +31,7 @@ public:
 
     // Main update (called at 1kHz)
     void update(unsigned long currentTime);
+    void setSpeedMonitor(SpeedMonitor* monitor);
 
     // Motor update (called as often as possible)
     void runMotor();
@@ -119,6 +120,7 @@ private:
     // THC state
     bool thcActive;
     bool lastThcActive;
+    SpeedMonitor* speedMonitor;
 
     // Re-stabilization after THC_OFF -> THC_ON
     bool prevThcOff;                    // previous thcOff state

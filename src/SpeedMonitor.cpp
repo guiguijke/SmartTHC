@@ -18,6 +18,10 @@ SpeedMonitor::SpeedMonitor()
     , thresholdSpeed(DEFAULT_CUT_SPEED * DEFAULT_THRESHOLD_RATIO)
     , filteredSpeed(0.0f)
     , speedState(false)
+    , cutMotionDetected(false)
+    , motionPending(false)
+    , motionPendingStartTime(0)
+    , cutMotionStartTime(0)
     , speedReadingIndex(0)
     , sumSpeedReadings(0.0f)
     , lastSpeedTime(0)
@@ -117,13 +121,35 @@ void SpeedMonitor::calculateSpeed(unsigned long currentTime) {
     }
 
     // Update speed state
+    float thresholdLow = thresholdSpeed * (1.0f - CUT_SPEED_HYSTERESIS_RATIO);
     if (!speedState && filteredSpeed >= thresholdSpeed) {
         speedState = true;
-    } else if (speedState && filteredSpeed < thresholdSpeed) {
+    } else if (speedState && filteredSpeed < thresholdLow) {
         speedState = false;
     }
 
+    if (speedState) {
+        if (!motionPending) {
+            motionPending = true;
+            motionPendingStartTime = currentTime;
+        }
+
+        if (!cutMotionDetected && (currentTime - motionPendingStartTime >= CUT_MOTION_CONFIRM_DELAY)) {
+            cutMotionDetected = true;
+            cutMotionStartTime = motionPendingStartTime;
+        }
+    } else {
+        motionPending = false;
+        motionPendingStartTime = 0;
+        cutMotionDetected = false;
+        cutMotionStartTime = 0;
+    }
+
     lastSpeedTime = currentTime;
+}
+
+bool SpeedMonitor::hasCutMotionStableSince(unsigned long timestamp) const {
+    return cutMotionDetected && cutMotionStartTime > 0 && cutMotionStartTime <= timestamp;
 }
 
 long SpeedMonitor::getPositionAtTime(unsigned long targetTime, long defaultPos) const {
