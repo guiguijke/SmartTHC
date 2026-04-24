@@ -27,6 +27,7 @@ THCController::THCController()
     , slowSum(0.0f)
     , slowInit(false)
     , slowLp(0.0f)
+    , slowGateWasOn(false)
     , plasmaPinLow(false)
     , enablePinLow(false)
     , arcDetected(false)
@@ -116,17 +117,13 @@ void THCController::setSpeedMonitor(SpeedMonitor* monitor) {
 }
 
 void THCController::readAndFilterVoltage(unsigned long currentTime) {
-    // Capture previous arc state before recomputing — used to detect the
-    // off→on transition and re-seed the slow filter with genuine arc voltage.
-    bool prevArc = arcDetected;
-
     // Raw ADC reading
     int reading = analogRead(PLASMA_VOLTAGE);
     float raw = (reading / 16383.0f) * 5.0f * DEFAULT_VOLTAGEDIVIDER;
 
     // === FAST: Oversample 10x + Low-pass (PID input) ===
-    // Runs unconditionally so arc detection can see the ADC rise when
-    // plasma re-ignites.
+    // Always runs so arc detection still sees the ADC rise when plasma
+    // re-ignites.
     oversampleSum += raw;
     oversampleCount++;
 
@@ -141,15 +138,27 @@ void THCController::readAndFilterVoltage(unsigned long currentTime) {
         oversampleCount = 0;
     }
 
-    // Update arc detection from the new fast voltage.
+    // Arc detection from new fast voltage.
     arcDetected = (fastVoltage > ARC_THRESHOLD);
 
-    // === SLOW: 200-sample average + Low-pass (anti-dive reference) ===
-    // Only advance the filter while the arc is present. Re-seed on every
-    // off→on transition so the anti-dive reference starts from real arc
-    // voltage instead of ADC noise accumulated during the arc-off window.
-    if (arcDetected) {
-        if (!slowInit || !prevArc) {
+    // === SLOW filter gating ===
+    // The slow filter (200-sample avg + LP, used as the anti-dive reference)
+    // must only advance while the plasma is physically cutting. Gating on
+    // arcDetected alone is not enough: ARC_THRESHOLD is 10 V, and after
+    // PLASMA_PIN goes HIGH the inductive tail of the cut head keeps
+    // fastVoltage above 10 V for several hundred ms, polluting the buffer
+    // with garbage readings (seen in the field: slow frozen at 31.8 V
+    // instead of ~122 V). Gate on the GCode-commanded plasma pin as well,
+    // and re-seed on every off→on transition so the anti-dive reference
+    // starts from a genuine arc reading.
+    //
+    // plasmaPinLow is refreshed in updatePlasmaState which runs after this
+    // function, so we read its previous-iteration value here (<1 ms stale
+    // at 1 kHz, acceptable).
+    const bool gateNow = plasmaPinLow && arcDetected;
+
+    if (gateNow) {
+        if (!slowInit || !slowGateWasOn) {
             for (int i = 0; i < N_SLOW; i++) {
                 slowSamples[i] = raw;
             }
@@ -170,8 +179,10 @@ void THCController::readAndFilterVoltage(unsigned long currentTime) {
                       (1.0f - ALPHA_SLOW) * slowLp;
         slowLp = slowVoltage;
     }
-    // When the arc is off, slow* values are held at their last on-arc value
-    // so any background code still reading them sees a stable number.
+    // When the gate is off, slow* values are held at their last on-arc
+    // value — better than having them drift toward ambient noise.
+
+    slowGateWasOn = gateNow;
 }
 
 void THCController::updateAntiDive(unsigned long currentTime) {

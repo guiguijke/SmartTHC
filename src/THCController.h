@@ -110,6 +110,7 @@ private:
     float slowSum;
     bool slowInit;
     float slowLp;
+    bool slowGateWasOn;   // previous (plasmaPinLow && arcDetected), for off->on detection
 
     // Plasma state
     bool plasmaPinLow;
