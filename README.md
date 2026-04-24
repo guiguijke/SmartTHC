@@ -12,14 +12,15 @@ Licensed under the [GNU General Public License v3 (GPL v3)](#license).
 - **Anti-dive protection** with adaptive timing — prevents torch diving on corners and small features
 - **THC_OFF re-stabilization** (300ms delay) — prevents torch dive on small oblong holes
 - **Motion-gated THC activation** — THC starts only after confirmed XY cut motion, with a configurable post-motion delay to avoid pierce-phase triggering
-- **Watchdog Timer (WDT)** — auto-reboot on EMI-induced hangs in plasma environment
+- **Plasma-gated voltage filter** — the anti-dive slow reference is frozen and re-seeded on plasma transitions, keeping it clean through extinction transients and arc-over-void events
+- **Watchdog Timer (WDT)** — auto-reboot on EMI-induced hangs in plasma environment (2 s timeout, robust against the common Uno R4 FSP-enum pitfall)
 - **8-screen LCD menu** with rotary encoder navigation (setpoint, PID tuning, speed, correction factor)
 - **Real-time monitoring** — arc voltage, torch speed, and system status on 16x2 LCD
 - **Dual voltage filtering** — fast EMA for PID input + slow 200-sample average for anti-dive reference
 - **Speed monitoring** via X/Y step pulse interrupts with threshold-based activation
 - **Persistent EEPROM storage** with deferred writes (1s batching) to minimize flash wear
 - **Metric / Imperial support** (compile-time configurable)
-- **Serial debug interface** at 115200 baud with live status logging
+- **Structured serial logging** at 115200 baud — compact `key=value` status lines plus edge-triggered event lines on every state transition, designed to be grep/awk friendly and directly plottable
 
 ## Architecture
 
@@ -65,8 +66,8 @@ Modular design — each subsystem is a separate class, orchestrated by `main.cpp
    # Upload to board
    pio upload -e uno_r4_minima
 
-   # Serial monitor
-   pio device monitor --baud 115200
+   # Serial monitor (baud/echo/EOL are pre-configured in platformio.ini)
+   pio device monitor
    ```
 
 4. **Configure** pin assignments and mechanical constants in `src/Config.h` and `platformio.ini` build flags.
@@ -90,6 +91,34 @@ All constants are centralized in `src/Config.h`. Key parameters:
 Mechanical constants (`STEPS_PER_MM_X/Y/Z`, `DEFAULT_VOLTAGEDIVIDER`) are set as build flags in `platformio.ini`.
 
 - **THC timing model** combines plasma stabilization, THC_OFF re-stabilization, confirmed XY motion, and a fixed post-motion delay before PID engagement
+
+## Serial logging
+
+Serial output is gated by the `DEBUG` command (toggle). Two kinds of lines are emitted:
+
+- **Periodic status** (one line per `LOG_INTERVAL`):
+  ```
+  t=162412 st=THC_ACTIVE v=121.2/120.9 tgt=122.0 out=+0 spd=590 z=+1 ad=off
+  ```
+  `t` = ms since boot · `st` = state label · `v` = fast/slow voltage · `tgt` = setpoint ·
+  `out` = PID output in steps/s · `spd` = torch speed · `z` = Z step position ·
+  `ad` = anti-dive flag.
+
+- **Edge-triggered events** on every real state transition:
+  ```
+  EV: t=159926 plasma stabilized (v=137.3V)
+  EV: t=162104 THC_SIG asserted
+  EV: t=162404 THC re-stab delay DONE
+  EV: t=162404 THC active (v=120.7 tgt=122.0)
+  EV: t=176705 THC inactive reason=THC_SIG_LOW
+  EV: t=180908 anti-dive TRIGGERED fast=128.5 slow=118.2 drop=+10.3V
+  ```
+
+State labels mirror the THC gating chain, so the current label is also the answer to "why isn't THC running right now":
+`PLASMA_OFF`, `WAIT_STAB`, `THC_SIG_OFF`, `ENABLE_OFF`, `ARC_LOST`,
+`WAIT_RESTAB`, `WAIT_MOTION`, `WAIT_SPEED`, `ANTI_DIVE`, `THC_ACTIVE`, `ARMED`.
+
+Available serial commands: `DEBUG` (toggle logging), `STATUS` (instant snapshot), `RESET_EEPROM`, `HELP`.
 
 ## Dependencies
 
