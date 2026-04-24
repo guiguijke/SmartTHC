@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.2.1] - 2026-04-24
+
+### Fixed
+- **DFU re-flash reliability from VSCode / PlatformIO.** When the running firmware crashes in a tight loop, the watchdog keeps resetting the board and the host never gets a stable window to complete the 1200-baud touch + `dfu-util` transfer, so uploads fail intermittently. `setup()` now holds for 3 seconds **before** arming the watchdog, giving the host a guaranteed window to catch the board. The watchdog timeout is also bumped to 5500 ms (near the library max of 5592 ms), which more than covers any realistic loop stall without meaningfully weakening the plasma-EMI protection.
+
+### Notes
+- Cost: every cold boot now takes 3 s of unprotected time before the WDT engages. Acceptable for a shop-floor controller but worth knowing if you rely on sub-second boot to ready state. Adjust `wdtBootDelayStart` in `src/main.cpp` if you need a different trade-off.
+- The claim sometimes made that `NVIC_SystemReset()` "doesn't reset the WDT registers" on the RA4M1 does not apply to the software-started WDT that this library uses — it applies to the IWDT, which SmartTHC does not use. The real value of the boot window is giving the host time to catch a crashing firmware, not working around a silicon quirk.
+
 ## [2.2.0] - 2026-04-24
 
 ### Fixed

@@ -88,12 +88,23 @@ void setup() {
     thc.setSpeedMonitor(&speedMonitor);
     display.begin();
 
-    // Watchdog Timer - auto reboot if MCU hangs (plasma EMI).
-    // WDT.begin() on Uno R4 takes a value in MILLISECONDS (range 1..5592 ms).
-    // The WDT_TIMEOUT_* enum values from the FSP header are NOT ms — they are
-    // enum indices starting at 0, so passing them to this overload yields a
-    // ~1 ms timeout and an immediate reboot loop.
-    WDT.begin(2000);
+    // DFU flash window: hold 3 s before arming the watchdog so PlatformIO
+    // can catch the board in a stable state during re-flash. If the user
+    // firmware ever crashes in a tight loop (WDT-triggered reboot cycle),
+    // without this delay the host can't complete the 1200-baud touch +
+    // dfu-util upload before the next reset fires. 3 s is a comfortable
+    // margin for dfu-util on the Uno R4 Minima; raise if flashing over a
+    // slow USB hub.
+    // WDT.begin() on the Uno R4 takes a value in MILLISECONDS (range
+    // 1..5592 ms). The WDT_TIMEOUT_* enum values from the FSP header are
+    // plain indices starting at 0 — do NOT pass them here.
+    Serial.println("SmartTHC - DFU window 3s before WDT arms...");
+    const unsigned long wdtBootDelayStart = millis();
+    while (millis() - wdtBootDelayStart < 3000) {
+        delay(10);
+    }
+    WDT.begin(5500);  // near the library max of 5592 ms
+    Serial.println("SmartTHC - WDT armed (5500 ms)");
 
     Serial.println("SmartTHC - Ready!");
 }
