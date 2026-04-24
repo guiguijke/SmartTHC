@@ -88,10 +88,12 @@ void setup() {
     thc.setSpeedMonitor(&speedMonitor);
     display.begin();
 
-    // Watchdog Timer - auto reboot if MCU hangs (plasma EMI)
-    // IWDT clocks at ~15 kHz: 8192 cycles ≈ 550 ms, safely above the 250 ms
-    // LCD refresh and any full-screen redraw burst over I2C.
-    WDT.begin(WDT_TIMEOUT_8192);
+    // Watchdog Timer - auto reboot if MCU hangs (plasma EMI).
+    // WDT.begin() on Uno R4 takes a value in MILLISECONDS (range 1..5592 ms).
+    // The WDT_TIMEOUT_* enum values from the FSP header are NOT ms — they are
+    // enum indices starting at 0, so passing them to this overload yields a
+    // ~1 ms timeout and an immediate reboot loop.
+    WDT.begin(2000);
 
     Serial.println("SmartTHC - Ready!");
 }
