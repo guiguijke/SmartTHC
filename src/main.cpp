@@ -89,7 +89,9 @@ void setup() {
     display.begin();
 
     // Watchdog Timer - auto reboot if MCU hangs (plasma EMI)
-    WDT.begin(WDT_TIMEOUT_128);
+    // IWDT clocks at ~15 kHz: 8192 cycles ≈ 550 ms, safely above the 250 ms
+    // LCD refresh and any full-screen redraw burst over I2C.
+    WDT.begin(WDT_TIMEOUT_8192);
 
     Serial.println("SmartTHC - Ready!");
 }
