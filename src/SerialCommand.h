@@ -33,8 +33,29 @@ private:
     unsigned long lastLogTime;
     unsigned long lastLoopLogTime;
 
+    // Edge-trigger state snapshot — used by detectEvents() to emit
+    // one-shot event lines on transitions. These fire on every DEBUG
+    // cycle regardless of LOG_INTERVAL, so the event stream stays
+    // aligned with physical reality.
+    bool lastPlasmaOn;
+    bool lastArcDetected;
+    bool lastStabilized;
+    bool lastThcActive;
+    bool lastAntiDiveActive;
+    bool lastThcSig;
+    bool lastMotionGate;
+    bool lastReStab;
+    unsigned long antiDiveStartMs;
+    float antiDiveStartFast;
+    float antiDiveStartSlow;
+    bool firstStatusLine;
+
     void processCommand(String& command, EEPROMManager* eeprom, THCController* thc, SpeedMonitor* speed);
     void printStatus(THCController* thc, SpeedMonitor* speed);
+    void detectEvents(unsigned long currentTime, THCController* thc, SpeedMonitor* speed);
+    void printStatusLine(unsigned long currentTime, THCController* thc, SpeedMonitor* speed);
+    const char* currentStateLabel(THCController* thc, SpeedMonitor* speed);
+    const char* thcInactiveReason(THCController* thc, SpeedMonitor* speed);
 };
 
 #endif // SERIAL_COMMAND_H

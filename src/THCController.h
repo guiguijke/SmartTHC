@@ -62,6 +62,8 @@ public:
     bool isAntiDiveActive() const { return antiDiveActive; }
     bool isEnableLow() const { return enablePinLow; }
     bool isTHCOff() const { return thcOff; }
+    bool isThcOnReStabilized() const { return thcOnStabilized; }
+    bool isCutMotionGateReady() const { return cutMotionGateReady; }
 
     // Anti-dive event for display
     AntiDiveEvent getAntiDiveEvent() const;
@@ -126,6 +128,9 @@ private:
     bool prevThcOff;                    // previous thcOff state
     bool thcOnStabilized;               // true when re-stab delay has elapsed
     unsigned long thcOnTransitionTime;   // transition timestamp
+
+    // Cut-motion gate (last computed value, exposed for diagnostics)
+    bool cutMotionGateReady;
 
     // Anti-dive
     bool antiDiveActive;

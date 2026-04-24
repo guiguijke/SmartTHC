@@ -39,6 +39,7 @@ THCController::THCController()
     , prevThcOff(false)
     , thcOnStabilized(true)
     , thcOnTransitionTime(0)
+    , cutMotionGateReady(false)
     , antiDiveActive(false)
     , antiDiveStartTime(0)
     , voltageAtActivation(0.0f)
@@ -115,11 +116,17 @@ void THCController::setSpeedMonitor(SpeedMonitor* monitor) {
 }
 
 void THCController::readAndFilterVoltage(unsigned long currentTime) {
+    // Capture previous arc state before recomputing — used to detect the
+    // off→on transition and re-seed the slow filter with genuine arc voltage.
+    bool prevArc = arcDetected;
+
     // Raw ADC reading
     int reading = analogRead(PLASMA_VOLTAGE);
     float raw = (reading / 16383.0f) * 5.0f * DEFAULT_VOLTAGEDIVIDER;
 
     // === FAST: Oversample 10x + Low-pass (PID input) ===
+    // Runs unconditionally so arc detection can see the ADC rise when
+    // plasma re-ignites.
     oversampleSum += raw;
     oversampleCount++;
 
@@ -134,28 +141,37 @@ void THCController::readAndFilterVoltage(unsigned long currentTime) {
         oversampleCount = 0;
     }
 
-    // === SLOW: 200-sample average + Low-pass (anti-dive reference) ===
-    if (!slowInit) {
-        for (int i = 0; i < N_SLOW; i++) {
-            slowSamples[i] = raw;
-        }
-        slowSum = raw * N_SLOW;
-        slowInit = true;
-    }
-
-    slowSum -= slowSamples[slowIdx];
-    slowSamples[slowIdx] = raw;
-    slowSum += raw;
-    slowIdx = (slowIdx + 1) % N_SLOW;
-
-    float slowRawAvg = slowSum / N_SLOW;
-    uncorrectedSlow = slowRawAvg;
-    slowVoltage = ALPHA_SLOW * (slowRawAvg * voltageCorrectionFactor) +
-                  (1.0f - ALPHA_SLOW) * slowLp;
-    slowLp = slowVoltage;
-
-    // Arc detection
+    // Update arc detection from the new fast voltage.
     arcDetected = (fastVoltage > ARC_THRESHOLD);
+
+    // === SLOW: 200-sample average + Low-pass (anti-dive reference) ===
+    // Only advance the filter while the arc is present. Re-seed on every
+    // off→on transition so the anti-dive reference starts from real arc
+    // voltage instead of ADC noise accumulated during the arc-off window.
+    if (arcDetected) {
+        if (!slowInit || !prevArc) {
+            for (int i = 0; i < N_SLOW; i++) {
+                slowSamples[i] = raw;
+            }
+            slowSum = raw * N_SLOW;
+            slowLp = raw * voltageCorrectionFactor;
+            slowIdx = 0;
+            slowInit = true;
+        } else {
+            slowSum -= slowSamples[slowIdx];
+            slowSamples[slowIdx] = raw;
+            slowSum += raw;
+            slowIdx = (slowIdx + 1) % N_SLOW;
+        }
+
+        float slowRawAvg = slowSum / N_SLOW;
+        uncorrectedSlow = slowRawAvg;
+        slowVoltage = ALPHA_SLOW * (slowRawAvg * voltageCorrectionFactor) +
+                      (1.0f - ALPHA_SLOW) * slowLp;
+        slowLp = slowVoltage;
+    }
+    // When the arc is off, slow* values are held at their last on-arc value
+    // so any background code still reading them sees a stable number.
 }
 
 void THCController::updateAntiDive(unsigned long currentTime) {
@@ -242,7 +258,7 @@ void THCController::updateTHCState(unsigned long currentTime) {
     }
     prevThcOff = thcOff;
 
-    bool cutMotionGateReady = true;
+    cutMotionGateReady = true;
     if (speedMonitor != nullptr) {
         if (currentTime >= THC_AFTER_CUT_START_DELAY) {
             unsigned long requiredCutStartTime = currentTime - THC_AFTER_CUT_START_DELAY;
