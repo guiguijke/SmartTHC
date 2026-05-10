@@ -51,6 +51,15 @@ void SerialCommand::update(EEPROMManager* eeprom, THCController* thc, SpeedMonit
 
 void SerialCommand::processCommand(String& command, EEPROMManager* eeprom,
                                    THCController* thc, SpeedMonitor* speed) {
+    // Silently ignore empty input (bare Enter) so users can probe the link
+    // without triggering an error. trim() already strips trailing \r so
+    // CRLF terminals work alongside LF-only ones.
+    if (command.length() == 0) return;
+
+    // Match commands case-insensitively — typing `help` or `Help` should work
+    // just as well as `HELP`.
+    command.toUpperCase();
+
     if (command == "RESET_EEPROM") {
         eeprom->resetToDefaults();
 
@@ -84,6 +93,11 @@ void SerialCommand::processCommand(String& command, EEPROMManager* eeprom,
     else if (command == "HELP") {
         Serial.println("Commands: RESET_EEPROM, STATUS, DEBUG, HELP");
         Serial.println("Log format: 'st=' = periodic snapshot, 'EV:' = state transition");
+    }
+    else {
+        Serial.print("unknown command: ");
+        Serial.print(command);
+        Serial.println(" — type HELP");
     }
 }
 
