@@ -20,7 +20,6 @@
 #define PLASMA_VOLTAGE  A0  // ADC: plasma voltage
 
 // Z motor control
-#define ENABLE_Z_PIN    10  // Enable stepper Z
 #define DIR_PIN         8   // Direction
 #define STEP_PIN        6   // Step
 #define SWITCH1         9   // Output switch 1
@@ -179,7 +178,7 @@ const float CORRECTION_FACTOR_MAX = 2.0f;
 const float THRESHOLD_RATIO_MIN = 0.0f;
 const float THRESHOLD_RATIO_MAX = 1.0f;
 const double KP_MAX = 1500.0;
-const double KI_MAX = 1.0;
+const double KI_MAX = 50.0;
 const double KD_MAX = 100.0;
 
 // ============================================================================
