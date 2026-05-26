@@ -8,19 +8,21 @@ Licensed under the [GNU General Public License v3 (GPL v3)](#license).
 
 ## Features
 
-- **PID-based height control** running at 1kHz for responsive torch adjustment
-- **Anti-dive protection** with adaptive timing — prevents torch diving on corners and small features
-- **THC_OFF re-stabilization** (300ms delay) — prevents torch dive on small oblong holes
+- **PID-based height control** running at 1 kHz for responsive torch adjustment
+- **Explicit anti-dive Z lift** — when plasma voltage spikes (typically over a void or a previously cut piece), the firmware commands a fast, parameterizable Z retract (`ANTI_DIVE_LIFT_MM`, default 3 mm) on an aggressive speed/accel envelope (~120 ms for 3 mm) so the torch clears the work before re-entering metal. Prevents the classic "dive into the cut piece" crash.
+- **THC_OFF re-stabilization** (300 ms delay) — prevents torch dive on small oblong holes
 - **Motion-gated THC activation** — THC starts only after confirmed XY cut motion, with a configurable post-motion delay to avoid pierce-phase triggering
 - **Plasma-gated voltage filter** — the anti-dive slow reference is frozen and re-seeded on plasma transitions, keeping it clean through extinction transients and arc-over-void events
-- **Watchdog Timer (WDT)** — auto-reboot on EMI-induced hangs in plasma environment (2 s timeout, robust against the common Uno R4 FSP-enum pitfall)
+- **Configurable Z polarity** — `Z_DIR_INVERT` build flag flips the DIR output at the pin level so the firmware's "positive = up" contract holds regardless of driver wiring (affects both PID and lift in one shot)
+- **Watchdog Timer (WDT)** — auto-reboot on EMI-induced hangs in plasma environment (5.5 s timeout with a 3 s boot DFU window so flashing isn't blocked; robust against the common Uno R4 FSP-enum pitfall)
 - **8-screen LCD menu** with rotary encoder navigation (setpoint, PID tuning, speed, correction factor)
 - **Real-time monitoring** — arc voltage, torch speed, and system status on 16x2 LCD
 - **Dual voltage filtering** — fast EMA for PID input + slow 200-sample average for anti-dive reference
 - **Speed monitoring** via X/Y step pulse interrupts with threshold-based activation
-- **Persistent EEPROM storage** with deferred writes (1s batching) to minimize flash wear
+- **Persistent EEPROM storage** with deferred writes (1 s batching) to minimize flash wear
 - **Metric / Imperial support** (compile-time configurable)
 - **Structured serial logging** at 115200 baud — compact `key=value` status lines plus edge-triggered event lines on every state transition, designed to be grep/awk friendly and directly plottable
+- **Case-insensitive serial commands** with explicit "unknown command" feedback — `help`, `Help`, `HELP` all work; typos echo back with a usage hint instead of silently dropping
 
 ## Architecture
 
@@ -74,23 +76,53 @@ Modular design — each subsystem is a separate class, orchestrated by `main.cpp
 
 ## Configuration
 
-All constants are centralized in `src/Config.h`. Key parameters:
+All firmware constants are centralized in `src/Config.h`. Hardware-dependent values are exposed as `platformio.ini` build flags so you can adjust them without forking the source.
+
+### Build-flag overrides (`platformio.ini`)
+
+| Flag | Default | Description |
+|---|---|---|
+| `STEPS_PER_MM_X` | 200.0 | X axis steps/mm (matches your CNC controller) |
+| `STEPS_PER_MM_Y` | 200.0 | Y axis steps/mm |
+| `STEPS_PER_MM_Z` | 50.0 | Z axis steps/mm (defaults to NEMA17 1.8° / 8 mm leadscrew / 1/8 µstep) |
+| `ANTI_DIVE_LIFT_MM` | 3.0 | Emergency Z retract height (mm) when anti-dive triggers |
+| `Z_DIR_INVERT` | 0 | Set to `1` if your Z stepper turns the wrong way on bench test — fixes PID and lift polarity together |
+| `DEFAULT_VOLTAGEDIVIDER` | 83.27 | Plasma voltage attenuation ratio (e.g. 50:1 divider feeding 0–5 V into A0) |
+| `USE_IMPERIAL` | 0 | Switch to imperial units (IPM, inches) at compile time |
+
+Three additional motor-envelope flags (`STEPPER_MAX_SPEED`, `STEPPER_ACCELERATION`, `MAX_CUT_SPEED`) are available in `platformio.ini` but **commented out by default** and gated behind a hard warning. They are tightly coupled to the PID gains — changing them invalidates your tuning. See the "DANGER ZONE" block in `platformio.ini` for details.
+
+### In-firmware constants (`src/Config.h`)
 
 | Parameter | Default | Description |
 |---|---|---|
-| `STABILIZATION_DELAY` | 750ms | Plasma stabilization before PID activates |
-| `THC_ON_RESTAB_DELAY` | 300ms | Re-stabilization after THC_OFF → THC_ON |
-| `CUT_MOTION_CONFIRM_DELAY` | 200ms | Continuous XY motion validation before cut is considered started |
-| `THC_AFTER_CUT_START_DELAY` | 500ms | Additional fixed delay after confirmed cut start before THC can activate |
+| `STABILIZATION_DELAY` | 750 ms | Plasma stabilization before PID activates |
+| `THC_ON_RESTAB_DELAY` | 300 ms | Re-stabilization after THC_OFF → THC_ON |
+| `CUT_MOTION_CONFIRM_DELAY` | 200 ms | Continuous XY motion validation before cut is considered started |
+| `THC_AFTER_CUT_START_DELAY` | 500 ms | Additional fixed delay after confirmed cut start before THC can activate |
 | `CUT_SPEED_HYSTERESIS_RATIO` | 0.1 | Speed threshold hysteresis ratio to avoid ON/OFF chatter |
-| `DEFAULT_SETPOINT` | 110V | Target arc voltage |
-| `DEFAULT_KP / KI / KD` | 30 / 7.5 / 2.0 | PID coefficients |
-| `DROP_THRESHOLD` | 5V | Anti-dive activation threshold |
-| `STEPPER_DEADZONE` | 1V | PID dead zone |
+| `DEFAULT_SETPOINT` | 110 V | Target arc voltage |
+| `DEFAULT_KP / KI / KD` | 30 / 7.5 / 2.0 | PID coefficients (encoder-tunable up to `KP_MAX=1500`, `KI_MAX=50`, `KD_MAX=100`) |
+| `DROP_THRESHOLD` / `RETURN_THRESHOLD` | 5 V / 3 V | Anti-dive activation / deactivation thresholds |
+| `MAX_ANTI_DIVE_DURATION` | 1000 ms | Upper bound on anti-dive duration (force-deactivate even if voltage hasn't recovered) |
+| `ANTI_DIVE_LIFT_SPEED / _ACCEL` | 5000 / 20000 | Emergency lift motion envelope (faster than PID) |
+| `STEPPER_DEADZONE` | 1 V | PID dead zone |
 
-Mechanical constants (`STEPS_PER_MM_X/Y/Z`, `DEFAULT_VOLTAGEDIVIDER`) are set as build flags in `platformio.ini`.
+**THC timing model** combines plasma stabilization, THC_OFF re-stabilization, confirmed XY motion, and a fixed post-motion delay before PID engagement.
 
-- **THC timing model** combines plasma stabilization, THC_OFF re-stabilization, confirmed XY motion, and a fixed post-motion delay before PID engagement
+## Bench testing & first-cut checklist
+
+The anti-dive lift trusts that positive Z steps move the torch **up**. Before any cut on real material, verify this on the bench:
+
+1. Power the controller. Wire `ENABLE` (pin 10) to GND, `THC_OFF` (pin 11) to +5 V (or driven HIGH by your CNC controller), `ARC_OK` (pin 12) HIGH. Feed `STEP_X` / `STEP_Y` from a function generator at ≥ 1 kHz so the speed gate clears (1 kHz at `STEPS_PER_MM_X = 40` ≈ 1500 mm/min — adjust to your own steps/mm).
+2. Drive the plasma voltage input (50:1 attenuated) from a bench PSU. Send `STATUS` over serial — you should see `state=THC_ACTIVE` once all gates clear.
+3. Set voltage **below setpoint** (e.g. 90 V vs 110 V). Z should drive **up**.
+4. Set voltage **above setpoint** (e.g. 130 V). Z should drive **down**.
+5. Jump voltage sharply (110 V → 130 V) to trigger anti-dive. Z should **lift by `ANTI_DIVE_LIFT_MM`** at the emergency speed.
+
+If any direction is wrong, set `-D Z_DIR_INVERT=1` in `platformio.ini`, rebuild, re-flash. Both PID and lift will correct in one shot.
+
+A polarity-inverted anti-dive doesn't just fail to help — it actively drives the torch **into** the cut piece. Don't skip this check.
 
 ## Serial logging
 
@@ -118,7 +150,7 @@ State labels mirror the THC gating chain, so the current label is also the answe
 `PLASMA_OFF`, `WAIT_STAB`, `THC_SIG_OFF`, `ENABLE_OFF`, `ARC_LOST`,
 `WAIT_RESTAB`, `WAIT_MOTION`, `WAIT_SPEED`, `ANTI_DIVE`, `THC_ACTIVE`, `ARMED`.
 
-Available serial commands: `DEBUG` (toggle logging), `STATUS` (instant snapshot), `RESET_EEPROM`, `HELP`.
+Available serial commands: `DEBUG` (toggle logging), `STATUS` (instant snapshot), `RESET_EEPROM`, `HELP`. Commands are **case-insensitive** — `help`, `Help`, `HELP` all work — and any unrecognized input echoes back `unknown command: <x> — type HELP` so you never have to wonder whether the link is alive.
 
 ## Dependencies
 
