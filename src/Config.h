@@ -66,7 +66,9 @@
 
 #if USE_IMPERIAL
     const float DEFAULT_CUT_SPEED = 51.0f;      // ~1300 mm/min in IPM
-    const float MAX_CUT_SPEED = 400.0f;
+    #ifndef MAX_CUT_SPEED
+    #define MAX_CUT_SPEED 400.0f
+    #endif
     const float CUT_SPEED_ADJUST_STEP = 5.0f;
     const float DIST_PER_STEP_X = (1.0f / STEPS_PER_MM_X) / MM_PER_INCH;
     const float DIST_PER_STEP_Y = (1.0f / STEPS_PER_MM_Y) / MM_PER_INCH;
@@ -74,7 +76,9 @@
     const char* const SPEED_UNIT_LONG = "Inches/min";
 #else
     const float DEFAULT_CUT_SPEED = 1300.0f;
-    const float MAX_CUT_SPEED = 10000.0f;
+    #ifndef MAX_CUT_SPEED
+    #define MAX_CUT_SPEED 10000.0f
+    #endif
     const float CUT_SPEED_ADJUST_STEP = 100.0f;
     const float DIST_PER_STEP_X = 1.0f / STEPS_PER_MM_X;
     const float DIST_PER_STEP_Y = 1.0f / STEPS_PER_MM_Y;
@@ -183,10 +187,38 @@ const double KD_MAX = 100.0;
 
 // ============================================================================
 // MOTOR PARAMETERS
+//
+// !!! WARNING !!! READ BEFORE OVERRIDING STEPPER_MAX_SPEED / STEPPER_ACCELERATION
+//
+// These are NOT generic stepper-tuning numbers. They define the THC's correction
+// authority — how fast the Z axis is allowed to chase a plasma voltage transient
+// (kerf crossings, edge effects, plate warp). They are intentionally HIGHER than
+// the values you would use for a basic Z move (e.g. FluidNC homing/jogging),
+// because the THC must out-run normal motion to keep the torch on target.
+//
+// PID gains (KP / KI / KD) are TIGHTLY COUPLED to these values. If you change
+// STEPPER_MAX_SPEED or STEPPER_ACCELERATION, you MUST re-tune the PID from
+// scratch. Lowering them caps PID output → the loop saturates → response
+// degrades, oscillation, or torch dive. Raising them without retuning Kp can
+// produce overshoot and chatter.
+//
+// Defaults (5000 / 5000) target: NEMA17 1.8°/step, ~400 pulses/rev (1/8 µstep),
+// 8 mm-pitch leadscrew → 50 steps/mm Z. If your Z drive matches that envelope,
+// LEAVE THESE ALONE. If you override via build flags, plan a full PID re-tune
+// session immediately afterwards — there is no shortcut.
+//
+// MAX_CUT_SPEED is unit-aware: if you override it, set a value consistent with
+// USE_IMPERIAL (IPM vs mm/min). Default is 10000 mm/min or 400 IPM.
 // ============================================================================
 
-const float STEPPER_MAX_SPEED = 5000.0f;
-const float STEPPER_ACCELERATION = 5000.0f;
+#ifndef STEPPER_MAX_SPEED
+#define STEPPER_MAX_SPEED 5000.0f
+#endif
+
+#ifndef STEPPER_ACCELERATION
+#define STEPPER_ACCELERATION 5000.0f
+#endif
+
 const float STEPPER_DEADZONE = 1.0f;                // V - PID dead zone
 
 // ============================================================================
