@@ -68,7 +68,12 @@ void THCController::begin() {
     digitalWrite(SWITCH1, HIGH);
     digitalWrite(SWITCH2, HIGH);
 
-    // Configure motor
+    // Configure motor — Z_DIR_INVERT flips the DIR output at the pin level so
+    // both the PID (runSpeed) and the anti-dive lift (moveTo) agree on which
+    // physical direction is "up". The firmware semantics always treat positive
+    // = up; this flag is the single boundary where wiring polarity is
+    // reconciled.
+    stepper.setPinsInverted(Z_DIR_INVERT, false, false);
     stepper.setMaxSpeed(STEPPER_MAX_SPEED);
     stepper.setAcceleration(STEPPER_ACCELERATION);
 

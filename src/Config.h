@@ -54,6 +54,14 @@
 #define ANTI_DIVE_LIFT_MM  3.0
 #endif
 
+// Z direction polarity. 0 = positive PID output / positive lift offset move
+// the torch UP (default wiring). 1 = same logical semantics but the DIR pin
+// output is inverted at the driver — set this if your Z stepper turns the
+// wrong way on bench test. Affects PID and anti-dive lift simultaneously.
+#ifndef Z_DIR_INVERT
+#define Z_DIR_INVERT 0
+#endif
+
 #ifndef DEFAULT_VOLTAGEDIVIDER
 #define DEFAULT_VOLTAGEDIVIDER  83.27
 #endif
