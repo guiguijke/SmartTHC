@@ -38,9 +38,6 @@ public:
     // Anti-dive activation notification
     void notifyAntiDiveActivated();
 
-    // Force full refresh
-    void forceRefresh();
-
 private:
     LiquidCrystal_I2C lcd;
 
@@ -77,17 +74,12 @@ private:
     void drawScreen7(THCController* thc);
 
     // Utility methods
-    void clearLine(int line);
-    void printRightAligned(int col, int row, int value, int width);
-    void printRightAligned(int col, int row, float value, int width, int decimals);
     void drawStatusIcons(THCController* thc);
     void resetCachedValues();
 
     // Anti-Dive message handling
     void updateAntiDiveDisplay(unsigned long currentTime);
-    bool shouldShowAntiDiveMessage(unsigned long currentTime);
     void drawAntiDiveMessage();
-    void clearAntiDiveMessage();
 
     // Custom character creation
     void createCustomCharacters();

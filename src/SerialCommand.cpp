@@ -16,7 +16,6 @@
 #include "EEPROMManager.h"
 #include "THCController.h"
 #include "SpeedMonitor.h"
-#include <ArduPID.h>
 
 SerialCommand::SerialCommand()
     : debugEnabled(false)

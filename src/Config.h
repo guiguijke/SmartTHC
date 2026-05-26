@@ -141,13 +141,9 @@ const unsigned long PID_INTERVAL_US = 1000;         // us - 1kHz
 // ANTI-DIVE PARAMETERS
 // ============================================================================
 
-const unsigned long ANTI_DIVE_DURATION_MIN = 50;    // ms - min duration
-const unsigned long ANTI_DIVE_DURATION_MAX = 300;   // ms - max duration
 const unsigned long MAX_ANTI_DIVE_DURATION = 1000;  // ms - max total duration
 const float DROP_THRESHOLD = 5.0f;                  // V - activation threshold
 const float RETURN_THRESHOLD = 3.0f;                // V - deactivation threshold
-const float ANTI_DIVE_LIFT_SPEED = 1000.0f;         // steps/s
-const float ANTI_DIVE_LIFT_ACCEL = 5000.0f;         // steps/s²
 
 // Position history for anti-dive
 const int POSITION_HISTORY_INTERVAL = 100;          // ms

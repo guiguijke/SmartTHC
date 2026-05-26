@@ -186,8 +186,6 @@ void THCController::readAndFilterVoltage(unsigned long currentTime) {
 }
 
 void THCController::updateAntiDive(unsigned long currentTime) {
-    static bool lastAntiDiveState = false;
-
     // Anti-dive activation
     if (adcWarmedUp &&
         fastVoltage > slowVoltage + DROP_THRESHOLD &&
@@ -212,8 +210,6 @@ void THCController::updateAntiDive(unsigned long currentTime) {
             justAntiDiveActivated = false;
         }
     }
-
-    lastAntiDiveState = antiDiveActive;
 }
 
 void THCController::updatePlasmaState(unsigned long currentTime) {
@@ -298,8 +294,9 @@ void THCController::updateTHCState(unsigned long currentTime) {
 }
 
 void THCController::controlMotor(unsigned long currentTime) {
+    (void)currentTime;
     if (antiDiveActive) {
-        performAntiDiveLift(currentTime);
+        holdDuringAntiDive();
     } else if (thcActive) {
         normalTHCControl();
     } else {
@@ -308,14 +305,14 @@ void THCController::controlMotor(unsigned long currentTime) {
     }
 }
 
-void THCController::performAntiDiveLift(unsigned long currentTime) {
-    if (justAntiDiveActivated) {
-        // Calculate target position (1 second back + bonus)
-        // Note: history must be provided by caller
-        justAntiDiveActivated = false;
-    }
-
-    stepper.run();
+void THCController::holdDuringAntiDive() {
+    // Freeze Z while plasma voltage recovers. An earlier design also
+    // commanded a small Z retract here (driven by SpeedMonitor history
+    // + a bonus offset); that path was dropped during the modular
+    // refactor and can be reintroduced if real-world dives prove the
+    // hold-only behavior insufficient.
+    smoothedOutput = 0.0;
+    stepper.setSpeed(0);
 }
 
 void THCController::normalTHCControl() {
@@ -384,17 +381,4 @@ void THCController::reset() {
     pid.reset();
     stepper.setSpeed(0);
     smoothedOutput = 0.0;
-}
-
-float THCController::readRawVoltage() {
-    int reading = analogRead(PLASMA_VOLTAGE);
-    return (reading / 16383.0f) * 5.0f * DEFAULT_VOLTAGEDIVIDER;
-}
-
-void THCController::resetSlowFilter(float initialValue) {
-    for (int i = 0; i < N_SLOW; i++) {
-        slowSamples[i] = initialValue;
-    }
-    slowSum = initialValue * N_SLOW;
-    slowLp = initialValue;
 }

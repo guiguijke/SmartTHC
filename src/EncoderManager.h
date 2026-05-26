@@ -29,24 +29,11 @@ public:
     // Update - call in loop()
     void update();
 
-    // Encoder position reading
-    int getPosition() const { return encoderPos; }
-    void resetPosition() { encoderPos = 0; lastEncoderPos = 0; }
-
     // Delta since last call
     int getDelta();
 
     // Click detection (clean falling edge)
     bool isButtonClicked();
-
-    // Raw states (for debug)
-    bool isButtonPressed() const { return buttonState == BTN_HELD; }
-    bool isRotating() const { return rotationActive; }
-
-    // Configuration
-    void setDebounceTime(unsigned long ms) { debounceTime = ms; }
-    void setLockoutTime(unsigned long ms) { lockoutTime = ms; }
-    void setRotationTimeout(unsigned long ms) { rotationTimeout = ms; }
 
 private:
     // Encoder state

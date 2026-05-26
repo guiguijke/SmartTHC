@@ -152,11 +152,8 @@ private:
     void updatePlasmaState(unsigned long currentTime);
     void updateTHCState(unsigned long currentTime);
     void controlMotor(unsigned long currentTime);
-    void performAntiDiveLift(unsigned long currentTime);
+    void holdDuringAntiDive();
     void normalTHCControl();
-
-    float readRawVoltage();
-    void resetSlowFilter(float initialValue);
 };
 
 #endif // THC_CONTROLLER_H

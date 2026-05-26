@@ -85,7 +85,6 @@ private:
     unsigned long lastPositionRecordTime;
 
     void calculateSpeed(unsigned long currentTime);
-    void updatePositionHistory(unsigned long currentTime, long position);
 };
 
 #endif // SPEED_MONITOR_H

@@ -179,10 +179,6 @@ void SpeedMonitor::recordPosition(unsigned long currentTime, long position) {
     }
 }
 
-void SpeedMonitor::updatePositionHistory(unsigned long currentTime, long position) {
-    recordPosition(currentTime, position);
-}
-
 // Interrupt handlers
 void SpeedMonitor::onStepX() {
     unsigned long now = micros();

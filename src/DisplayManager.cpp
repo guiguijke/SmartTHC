@@ -154,12 +154,6 @@ void DisplayManager::updateAntiDiveDisplay(unsigned long currentTime) {
     }
 }
 
-bool DisplayManager::shouldShowAntiDiveMessage(unsigned long currentTime) {
-    return (adState == AD_DISPLAY_ACTIVE ||
-            adState == AD_DISPLAY_BLINK_ON ||
-            (adState == AD_DISPLAY_BLINK_OFF && !blinkVisible));
-}
-
 void DisplayManager::drawAntiDiveMessage() {
     lcd.setCursor(12, 0);
     if (blinkVisible) {
@@ -167,10 +161,6 @@ void DisplayManager::drawAntiDiveMessage() {
     } else {
         lcd.print("    ");
     }
-}
-
-void DisplayManager::clearAntiDiveMessage() {
-    // Nothing to do, handled in drawScreen0
 }
 
 void DisplayManager::drawScreen0(THCController* thc, SpeedMonitor* speedMonitor) {
@@ -354,34 +344,6 @@ void DisplayManager::drawScreen7(THCController* thc) {
     lcd.print("PID Kd:      ");
     lcd.setCursor(8, 0);
     lcd.print(thc->getKd(), 3);
-}
-
-void DisplayManager::clearLine(int line) {
-    lcd.setCursor(0, line);
-    for (int i = 0; i < LCD_COLUMNS; i++) {
-        lcd.print(" ");
-    }
-}
-
-void DisplayManager::printRightAligned(int col, int row, int value, int width) {
-    lcd.setCursor(col, row);
-    char buffer[6];
-    snprintf(buffer, sizeof(buffer), "%*d", width, value);
-    lcd.print(buffer);
-}
-
-void DisplayManager::printRightAligned(int col, int row, float value, int width, int decimals) {
-    lcd.setCursor(col, row);
-    char format[10];
-    snprintf(format, sizeof(format), "%%%d.%df", width, decimals);
-    char buffer[10];
-    snprintf(buffer, sizeof(buffer), format, value);
-    lcd.print(buffer);
-}
-
-void DisplayManager::forceRefresh() {
-    lastScreen = -1;
-    resetCachedValues();
 }
 
 void DisplayManager::resetCachedValues() {

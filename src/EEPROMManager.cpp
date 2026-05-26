@@ -5,7 +5,6 @@
  */
 
 #include "EEPROMManager.h"
-#include <limits.h>
 
 EEPROMManager::EEPROMManager()
     : pendingSetpoint(DEFAULT_SETPOINT)
