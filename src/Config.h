@@ -50,8 +50,8 @@
 #define STEPS_PER_MM_Z  50.0
 #endif
 
-#ifndef ANTI_DIVE_BONUS_MM
-#define ANTI_DIVE_BONUS_MM  1.5
+#ifndef ANTI_DIVE_LIFT_MM
+#define ANTI_DIVE_LIFT_MM  3.0
 #endif
 
 #ifndef DEFAULT_VOLTAGEDIVIDER
@@ -88,7 +88,7 @@
 
 // Z axis always in mm
 const float DIST_PER_STEP_Z = 1.0f / STEPS_PER_MM_Z;
-const long ANTI_DIVE_BONUS_STEPS = (long)(ANTI_DIVE_BONUS_MM * STEPS_PER_MM_Z);
+const long ANTI_DIVE_LIFT_STEPS = (long)(ANTI_DIVE_LIFT_MM * STEPS_PER_MM_Z);
 
 // ============================================================================
 // PID DEFAULT VALUES
@@ -144,6 +144,15 @@ const unsigned long PID_INTERVAL_US = 1000;         // us - 1kHz
 const unsigned long MAX_ANTI_DIVE_DURATION = 1000;  // ms - max total duration
 const float DROP_THRESHOLD = 5.0f;                  // V - activation threshold
 const float RETURN_THRESHOLD = 3.0f;                // V - deactivation threshold
+
+// Emergency Z retract envelope used during anti-dive. Deliberately faster
+// than the PID envelope (STEPPER_MAX_SPEED / STEPPER_ACCELERATION) so the
+// lift completes in tens of milliseconds — the whole point of anti-dive
+// is to outrun the dive itself. The lift HEIGHT is exposed as a build
+// flag (ANTI_DIVE_LIFT_MM); speed/accel stay fixed because they are
+// safety-critical and shouldn't drift with user tuning.
+const float ANTI_DIVE_LIFT_SPEED = 5000.0f;         // steps/s - emergency retract speed
+const float ANTI_DIVE_LIFT_ACCEL = 20000.0f;        // steps/s² - aggressive ramp for snappy retract
 
 // Position history for anti-dive
 const int POSITION_HISTORY_INTERVAL = 100;          // ms

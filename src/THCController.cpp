@@ -109,7 +109,21 @@ void THCController::update(unsigned long currentTime) {
 }
 
 void THCController::runMotor() {
-    stepper.run();
+    // The motor is driven by two different AccelStepper modes depending on
+    // state, and they MUST NOT both pump steps at the same time:
+    //
+    //   - During normal cutting, normalTHCControl() calls runSpeed() at 1 kHz
+    //     to step the motor at the PID-commanded constant speed.
+    //   - During anti-dive, we instead command a position move via moveTo()
+    //     and need run() pumped as fast as possible so the acceleration
+    //     profile resolves smoothly within the dive window.
+    //
+    // run() and runSpeed() share the stepper's internal _speed state; calling
+    // run() during normal cutting would fight runSpeed() and produce step
+    // glitching. Gating run() on antiDiveActive keeps the two regimes clean.
+    if (antiDiveActive) {
+        stepper.run();
+    }
 }
 
 void THCController::setSpeedMonitor(SpeedMonitor* monitor) {
@@ -198,6 +212,15 @@ void THCController::updateAntiDive(unsigned long currentTime) {
         justAntiDiveActivated = true;
         antiDiveStartTime = currentTime;
         voltageAtActivation = slowVoltage;
+
+        // Emergency lift: command Z to retract by ANTI_DIVE_LIFT_STEPS using
+        // an aggressive speed/accel envelope so the move completes in tens of
+        // ms — fast enough to clear the previously-cut piece before the torch
+        // dives into it on the way back over metal. Positive steps = up
+        // (verified against the original monolithic firmware).
+        stepper.setMaxSpeed(ANTI_DIVE_LIFT_SPEED);
+        stepper.setAcceleration(ANTI_DIVE_LIFT_ACCEL);
+        stepper.moveTo(stepper.currentPosition() + ANTI_DIVE_LIFT_STEPS);
     }
 
     // Anti-dive deactivation
@@ -208,6 +231,13 @@ void THCController::updateAntiDive(unsigned long currentTime) {
         if (shouldDeactivate) {
             antiDiveActive = false;
             justAntiDiveActivated = false;
+
+            // Restore the PID motion envelope and cancel any unfinished lift
+            // travel so the next normalTHCControl tick can resume without
+            // fighting a stale position target.
+            stepper.setMaxSpeed(STEPPER_MAX_SPEED);
+            stepper.setAcceleration(STEPPER_ACCELERATION);
+            stepper.moveTo(stepper.currentPosition());
         }
     }
 }
@@ -296,23 +326,18 @@ void THCController::updateTHCState(unsigned long currentTime) {
 void THCController::controlMotor(unsigned long currentTime) {
     (void)currentTime;
     if (antiDiveActive) {
-        holdDuringAntiDive();
-    } else if (thcActive) {
+        // Motion is driven by runMotor() against the moveTo() target set in
+        // updateAntiDive() at activation. The PID is paused for the duration
+        // of the dive — once the lift completes, the stepper sits at the new
+        // position until deactivation restores PID control.
+        return;
+    }
+    if (thcActive) {
         normalTHCControl();
     } else {
         smoothedOutput = 0.0;
         stepper.setSpeed(0);
     }
-}
-
-void THCController::holdDuringAntiDive() {
-    // Freeze Z while plasma voltage recovers. An earlier design also
-    // commanded a small Z retract here (driven by SpeedMonitor history
-    // + a bonus offset); that path was dropped during the modular
-    // refactor and can be reintroduced if real-world dives prove the
-    // hold-only behavior insufficient.
-    smoothedOutput = 0.0;
-    stepper.setSpeed(0);
 }
 
 void THCController::normalTHCControl() {
