@@ -20,9 +20,14 @@ THCController::THCController()
     , slowVoltage(0.0f)
     , uncorrectedFast(0.0f)
     , uncorrectedSlow(0.0f)
-    , oversampleSum(0.0f)
-    , oversampleCount(0)
-    , lastPidInput(0.0f)
+    , lastFastInput(0.0f)
+    , fastAverageIdx(0)
+    , fastAverageSum(0.0f)
+    , fastAverageReady(false)
+    , slowAverageIdx(0)
+    , slowAverageSum(0.0f)
+    , slowAverageReady(false)
+    , lastSlowSampleTime(0)
     , slowIdx(0)
     , slowSum(0.0f)
     , slowInit(false)
@@ -33,6 +38,7 @@ THCController::THCController()
     , arcDetected(false)
     , thcOff(false)
     , plasmaStabilized(false)
+    , lastPlasmaStabilized(false)
     , plasmaActiveTime(0)
     , thcActive(false)
     , lastThcActive(false)
@@ -42,6 +48,8 @@ THCController::THCController()
     , thcOnTransitionTime(0)
     , cutMotionGateReady(false)
     , antiDiveActive(false)
+    , antiDivePending(false)
+    , antiDivePendingStartTime(0)
     , antiDiveStartTime(0)
     , voltageAtActivation(0.0f)
     , justAntiDiveActivated(false)
@@ -52,6 +60,16 @@ THCController::THCController()
     // Initialize slowSamples array
     for (int i = 0; i < N_SLOW; i++) {
         slowSamples[i] = 0.0f;
+    }
+
+    // Initialize fast-filter rolling average
+    for (int i = 0; i < FAST_AVERAGE_SIZE; i++) {
+        fastAverageSamples[i] = 0.0f;
+    }
+
+    // Initialize slow-filter rolling average
+    for (int i = 0; i < SLOW_AVERAGE_SIZE; i++) {
+        slowAverageSamples[i] = 0.0f;
     }
 }
 
@@ -135,30 +153,60 @@ void THCController::setSpeedMonitor(SpeedMonitor* monitor) {
     speedMonitor = monitor;
 }
 
+void THCController::reseedSlowFilter(float avgRaw) {
+    for (int i = 0; i < N_SLOW; i++) {
+        slowSamples[i] = avgRaw;
+    }
+    slowSum = avgRaw * N_SLOW;
+    slowLp = avgRaw * voltageCorrectionFactor;
+    slowIdx = 0;
+    slowInit = true;
+}
+
 void THCController::readAndFilterVoltage(unsigned long currentTime) {
-    // Raw ADC reading
+    // Raw ADC reading — one sample per PID tick (1 kHz)
     int reading = analogRead(PLASMA_VOLTAGE);
     float raw = (reading / 16383.0f) * 5.0f * DEFAULT_VOLTAGEDIVIDER;
 
-    // === FAST: Oversample 10x + Low-pass (PID input) ===
-    // Always runs so arc detection still sees the ADC rise when plasma
-    // re-ignites.
-    oversampleSum += raw;
-    oversampleCount++;
+    // === FAST filter rolling average + EMA (PID input) ===
+    // A 5-point rolling average at 1 kHz gives an effective 200 Hz input to
+    // the fast EMA, smoothing ADC noise without adding the 10 ms latency of
+    // the previous 10x oversampling scheme.
+    fastAverageSum -= fastAverageSamples[fastAverageIdx];
+    fastAverageSamples[fastAverageIdx] = raw;
+    fastAverageSum += raw;
+    fastAverageIdx = (fastAverageIdx + 1) % FAST_AVERAGE_SIZE;
 
-    if (oversampleCount >= OVERSAMPLE_TARGET) {
-        float avgRaw = oversampleSum / OVERSAMPLE_TARGET;
-        uncorrectedFast = INPUT_ALPHA * avgRaw + (1.0f - INPUT_ALPHA) * lastPidInput;
-        lastPidInput = uncorrectedFast;
-        fastVoltage = uncorrectedFast * voltageCorrectionFactor;
-        Input = fastVoltage;
-
-        oversampleSum = 0.0f;
-        oversampleCount = 0;
+    if (fastAverageIdx == 0) {
+        fastAverageReady = true;
     }
 
-    // Arc detection from new fast voltage.
+    float fastRaw = raw;
+    if (fastAverageReady) {
+        fastRaw = fastAverageSum / FAST_AVERAGE_SIZE;
+    }
+
+    uncorrectedFast = INPUT_ALPHA * fastRaw + (1.0f - INPUT_ALPHA) * lastFastInput;
+    lastFastInput = uncorrectedFast;
+    fastVoltage = uncorrectedFast * voltageCorrectionFactor;
+    Input = fastVoltage;
+
+    // Arc detection from the fast voltage.
     arcDetected = (fastVoltage > ARC_THRESHOLD);
+
+    // === SLOW filter rolling average ===
+    // The slow filter needs a stable 100 Hz input (10 ms period). Maintain
+    // a 10-point rolling average of the raw ADC values; every 10 ms feed the
+    // average into the 200-sample slow buffer, preserving the original ~2 s
+    // anti-dive reference window.
+    slowAverageSum -= slowAverageSamples[slowAverageIdx];
+    slowAverageSamples[slowAverageIdx] = raw;
+    slowAverageSum += raw;
+    slowAverageIdx = (slowAverageIdx + 1) % SLOW_AVERAGE_SIZE;
+
+    if (slowAverageIdx == 0) {
+        slowAverageReady = true;
+    }
 
     // === SLOW filter gating ===
     // The slow filter (200-sample avg + LP, used as the anti-dive reference)
@@ -176,19 +224,17 @@ void THCController::readAndFilterVoltage(unsigned long currentTime) {
     // at 1 kHz, acceptable).
     const bool gateNow = plasmaPinLow && arcDetected;
 
-    if (gateNow) {
+    if (gateNow && slowAverageReady &&
+        (currentTime - lastSlowSampleTime >= SLOW_SAMPLE_INTERVAL_MS)) {
+
+        float avgRaw = slowAverageSum / SLOW_AVERAGE_SIZE;
+
         if (!slowInit || !slowGateWasOn) {
-            for (int i = 0; i < N_SLOW; i++) {
-                slowSamples[i] = raw;
-            }
-            slowSum = raw * N_SLOW;
-            slowLp = raw * voltageCorrectionFactor;
-            slowIdx = 0;
-            slowInit = true;
+            reseedSlowFilter(avgRaw);
         } else {
             slowSum -= slowSamples[slowIdx];
-            slowSamples[slowIdx] = raw;
-            slowSum += raw;
+            slowSamples[slowIdx] = avgRaw;
+            slowSum += avgRaw;
             slowIdx = (slowIdx + 1) % N_SLOW;
         }
 
@@ -197,6 +243,8 @@ void THCController::readAndFilterVoltage(unsigned long currentTime) {
         slowVoltage = ALPHA_SLOW * (slowRawAvg * voltageCorrectionFactor) +
                       (1.0f - ALPHA_SLOW) * slowLp;
         slowLp = slowVoltage;
+
+        lastSlowSampleTime = currentTime;
     }
     // When the gate is off, slow* values are held at their last on-arc
     // value — better than having them drift toward ambient noise.
@@ -205,27 +253,41 @@ void THCController::readAndFilterVoltage(unsigned long currentTime) {
 }
 
 void THCController::updateAntiDive(unsigned long currentTime) {
-    // Anti-dive activation
-    if (adcWarmedUp &&
-        fastVoltage > slowVoltage + DROP_THRESHOLD &&
-        !antiDiveActive &&
-        plasmaPinLow &&
-        plasmaStabilized &&
-        thcActive) {
+    // Conditions required for anti-dive to be considered
+    bool canActivate = (adcWarmedUp &&
+                        plasmaPinLow &&
+                        plasmaStabilized &&
+                        thcActive);
+    bool dropDetected = (fastVoltage > slowVoltage + DROP_THRESHOLD);
 
-        antiDiveActive = true;
-        justAntiDiveActivated = true;
-        antiDiveStartTime = currentTime;
-        voltageAtActivation = slowVoltage;
+    // Activation with temporal confirmation: ignore short spikes (< 30 ms)
+    // that are likely noise or normal transients. Only commit to a lift if
+    // the drop condition persists.
+    if (!antiDiveActive) {
+        if (canActivate && dropDetected) {
+            if (!antiDivePending) {
+                antiDivePending = true;
+                antiDivePendingStartTime = currentTime;
+            } else if (currentTime - antiDivePendingStartTime >= ANTI_DIVE_CONFIRM_MS) {
+                antiDiveActive = true;
+                justAntiDiveActivated = true;
+                antiDiveStartTime = currentTime;
+                voltageAtActivation = slowVoltage;
+                antiDivePending = false;
 
-        // Emergency lift: command Z to retract by ANTI_DIVE_LIFT_STEPS using
-        // an aggressive speed/accel envelope so the move completes in tens of
-        // ms — fast enough to clear the previously-cut piece before the torch
-        // dives into it on the way back over metal. Positive steps = up
-        // (verified against the original monolithic firmware).
-        stepper.setMaxSpeed(ANTI_DIVE_LIFT_SPEED);
-        stepper.setAcceleration(ANTI_DIVE_LIFT_ACCEL);
-        stepper.moveTo(stepper.currentPosition() + ANTI_DIVE_LIFT_STEPS);
+                // Emergency lift: command Z to retract by ANTI_DIVE_LIFT_STEPS using
+                // an aggressive speed/accel envelope so the move completes in tens of
+                // ms — fast enough to clear the previously-cut piece before the torch
+                // dives into it on the way back over metal. Positive steps = up
+                // (verified against the original monolithic firmware).
+                stepper.setMaxSpeed(ANTI_DIVE_LIFT_SPEED);
+                stepper.setAcceleration(ANTI_DIVE_LIFT_ACCEL);
+                stepper.moveTo(stepper.currentPosition() + ANTI_DIVE_LIFT_STEPS);
+            }
+        } else {
+            // Drop condition disappeared before confirmation -> cancel pending
+            antiDivePending = false;
+        }
     }
 
     // Anti-dive deactivation
@@ -263,8 +325,6 @@ void THCController::updatePlasmaState(unsigned long currentTime) {
     }
 
     // Stabilization handling
-    static bool lastPlasmaStabilized = false;
-
     if (plasmaPinLow && !plasmaStabilized) {
         if (plasmaActiveTime == 0) {
             plasmaActiveTime = currentTime;
@@ -273,6 +333,13 @@ void THCController::updatePlasmaState(unsigned long currentTime) {
             plasmaStabilized = true;
             if (!lastPlasmaStabilized) {
                 pid.reset();
+                // Re-seed the slow filter with the current stabilized voltage
+                // instead of the pierce voltage (~145 V). This prevents the
+                // anti-dive reference from taking ~2 s to converge and causing
+                // false triggers during the first seconds of cutting.
+                if (slowAverageReady) {
+                    reseedSlowFilter(uncorrectedFast);
+                }
             }
         }
     } else if (!plasmaPinLow) {
@@ -411,4 +478,5 @@ void THCController::reset() {
     pid.reset();
     stepper.setSpeed(0);
     smoothedOutput = 0.0;
+    antiDivePending = false;
 }

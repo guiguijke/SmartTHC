@@ -99,10 +99,19 @@ private:
     float uncorrectedFast;
     float uncorrectedSlow;
 
-    // Oversampling
-    float oversampleSum;
-    uint8_t oversampleCount;
-    float lastPidInput;
+    // Fast filter state
+    float lastFastInput;
+    float fastAverageSamples[FAST_AVERAGE_SIZE];
+    int fastAverageIdx;
+    float fastAverageSum;
+    bool fastAverageReady;
+
+    // Slow-filter rolling average (10-point @ 1 kHz → 100 Hz input to slow buffer)
+    float slowAverageSamples[SLOW_AVERAGE_SIZE];
+    int slowAverageIdx;
+    float slowAverageSum;
+    bool slowAverageReady;
+    unsigned long lastSlowSampleTime;
 
     // Slow filter
     float slowSamples[N_SLOW];
@@ -118,6 +127,7 @@ private:
     bool arcDetected;
     bool thcOff;
     bool plasmaStabilized;
+    bool lastPlasmaStabilized;
     unsigned long plasmaActiveTime;
 
     // THC state
@@ -135,6 +145,8 @@ private:
 
     // Anti-dive
     bool antiDiveActive;
+    bool antiDivePending;               // drop detected, awaiting confirmation
+    unsigned long antiDivePendingStartTime;
     unsigned long antiDiveStartTime;
     float voltageAtActivation;
     bool justAntiDiveActivated;
@@ -153,6 +165,7 @@ private:
     void updateTHCState(unsigned long currentTime);
     void controlMotor(unsigned long currentTime);
     void normalTHCControl();
+    void reseedSlowFilter(float avgRaw);
 };
 
 #endif // THC_CONTROLLER_H

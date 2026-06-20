@@ -181,19 +181,14 @@ void DisplayManager::drawScreen0(THCController* thc, SpeedMonitor* speedMonitor)
     if (adState != AD_DISPLAY_IDLE) {
         drawAntiDiveMessage();
     } else {
-        // Normal speed display
+        // Normal speed display — top-right 4-digit field, clamped to 9999
         int displayedSpeed = (int)(speedMonitor->getFilteredSpeed());
+        if (displayedSpeed < 0) displayedSpeed = 0;
         if (displayedSpeed > 9999) displayedSpeed = 9999;
 
-        if (speedMonitor->getFilteredSpeed() < 0.1f) {
-            if (lastSpeed != 0) {
-                lcd.setCursor(12, 0);
-                lcd.print("   0");
-                lastSpeed = 0;
-            }
-        } else if (displayedSpeed != lastSpeed) {
+        if (displayedSpeed != lastSpeed) {
             lcd.setCursor(12, 0);
-            char buffer[5];
+            char buffer[8];
             snprintf(buffer, sizeof(buffer), "%4d", displayedSpeed);
             lcd.print(buffer);
             lastSpeed = displayedSpeed;
@@ -309,8 +304,11 @@ void DisplayManager::drawScreen3(SpeedMonitor* speedMonitor) {
     lcd.setCursor(0, 0);
     lcd.print("CutSpd:     ");
     lcd.setCursor(8, 0);
-    char buffer[5];
-    snprintf(buffer, sizeof(buffer), "%4.0f", speedMonitor->getCutSpeed());
+    float cutSpeed = speedMonitor->getCutSpeed();
+    if (cutSpeed < 0.0f) cutSpeed = 0.0f;
+    if (cutSpeed > 9999.0f) cutSpeed = 9999.0f;
+    char buffer[8];
+    snprintf(buffer, sizeof(buffer), "%4.0f", cutSpeed);
     lcd.print(buffer);
 
     lcd.setCursor(0, 1);
