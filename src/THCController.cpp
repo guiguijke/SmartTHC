@@ -5,6 +5,16 @@
  */
 
 #include "THCController.h"
+#include <stdlib.h>  // qsort for trimmed average
+
+// qsort comparator for float array
+static int compareFloat(const void* a, const void* b) {
+    float fa = *(const float*)a;
+    float fb = *(const float*)b;
+    if (fa < fb) return -1;
+    if (fa > fb) return 1;
+    return 0;
+}
 
 THCController::THCController()
     : stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN)
@@ -22,7 +32,6 @@ THCController::THCController()
     , uncorrectedSlow(0.0f)
     , lastFastInput(0.0f)
     , fastAverageIdx(0)
-    , fastAverageSum(0.0f)
     , fastAverageReady(false)
     , slowAverageIdx(0)
     , slowAverageSum(0.0f)
@@ -168,13 +177,11 @@ void THCController::readAndFilterVoltage(unsigned long currentTime) {
     int reading = analogRead(PLASMA_VOLTAGE);
     float raw = (reading / 16383.0f) * 5.0f * DEFAULT_VOLTAGEDIVIDER;
 
-    // === FAST filter rolling average + EMA (PID input) ===
-    // A 5-point rolling average at 1 kHz gives an effective 200 Hz input to
-    // the fast EMA, smoothing ADC noise without adding the 10 ms latency of
-    // the previous 10x oversampling scheme.
-    fastAverageSum -= fastAverageSamples[fastAverageIdx];
+    // === FAST filter trimmed rolling average + EMA (PID input) ===
+    // Maintain a rolling window of raw ADC values. Once full, reject the
+    // FAST_AVERAGE_TRIM smallest and largest samples (outliers) and average
+    // the rest. This is far more robust to impulse noise than a plain mean.
     fastAverageSamples[fastAverageIdx] = raw;
-    fastAverageSum += raw;
     fastAverageIdx = (fastAverageIdx + 1) % FAST_AVERAGE_SIZE;
 
     if (fastAverageIdx == 0) {
@@ -183,7 +190,17 @@ void THCController::readAndFilterVoltage(unsigned long currentTime) {
 
     float fastRaw = raw;
     if (fastAverageReady) {
-        fastRaw = fastAverageSum / FAST_AVERAGE_SIZE;
+        float sorted[FAST_AVERAGE_SIZE];
+        for (int i = 0; i < FAST_AVERAGE_SIZE; i++) {
+            sorted[i] = fastAverageSamples[i];
+        }
+        qsort(sorted, FAST_AVERAGE_SIZE, sizeof(float), compareFloat);
+
+        float sum = 0.0f;
+        for (int i = FAST_AVERAGE_TRIM; i < FAST_AVERAGE_SIZE - FAST_AVERAGE_TRIM; i++) {
+            sum += sorted[i];
+        }
+        fastRaw = sum / (FAST_AVERAGE_SIZE - 2 * FAST_AVERAGE_TRIM);
     }
 
     uncorrectedFast = INPUT_ALPHA * fastRaw + (1.0f - INPUT_ALPHA) * lastFastInput;

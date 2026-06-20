@@ -239,10 +239,11 @@ const float STEPPER_DEADZONE = 1.0f;                // V - PID dead zone
 // ============================================================================
 
 const int SPEED_FILTER_SIZE = 1;
-const int FAST_AVERAGE_SIZE = 10;                   // Rolling-average window for PID input (1 kHz / 10 = 100 Hz effective)
+const int FAST_AVERAGE_SIZE = 15;                   // Rolling-average window for PID input
+const int FAST_AVERAGE_TRIM = 2;                    // Reject this many min/max samples from the fast window
 const int SLOW_AVERAGE_SIZE = 10;                   // Rolling-average window for slow-filter input
 const unsigned long SLOW_SAMPLE_INTERVAL_MS = 10;   // 100 Hz update rate for slow filter
-const float INPUT_ALPHA = 0.9f;                     // Fast low-pass
+const float INPUT_ALPHA = 0.95f;                    // Fast low-pass
 const float ALPHA_SLOW = 0.8f;                      // Slow low-pass
 const int N_SLOW = 200;                             // Slow average
 const unsigned long ANTI_DIVE_CONFIRM_MS = 30;      // Minimum drop duration before triggering anti-dive

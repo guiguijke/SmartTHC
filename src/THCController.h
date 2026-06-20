@@ -103,7 +103,6 @@ private:
     float lastFastInput;
     float fastAverageSamples[FAST_AVERAGE_SIZE];
     int fastAverageIdx;
-    float fastAverageSum;
     bool fastAverageReady;
 
     // Slow-filter rolling average (10-point @ 1 kHz → 100 Hz input to slow buffer)
