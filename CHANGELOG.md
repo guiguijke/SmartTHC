@@ -2,6 +2,64 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.4.0] - 2026-06-21
+
+### Changed
+- **Dual-rate voltage sampling path.** `THCController` now runs two independent sampling chains instead of one shared reading:
+  - **PID input:** sampled and filtered at the existing 1 kHz rate, using a 15-sample rolling average with a trimmed mean (rejecting the 2 highest / lowest outliers) and an EMA (`INPUT_ALPHA=0.95`). This gives the PID a much cleaner voltage estimate without the lag that a single slow filter would impose.
+  - **Anti-dive reference:** sampled at 100 Hz (`SLOW_SAMPLE_INTERVAL_MS=10`) through its own 10-sample rolling average, then into the existing 200-sample slow EMA. Keeping the slow path at a lower rate prevents ADC noise from being integrated at full loop speed while still tracking real arc drift.
+- **Slow-filter re-seeding on plasma stabilization.** The slow reference is now re-seeded when the plasma input stabilizes, eliminating the ~2 s convergence period after pierce that previously left anti-dive with a stale or polluted reference.
+
+### Added
+- **30 ms temporal confirmation before anti-dive triggers** (`ANTI_DIVE_CONFIRM_MS=30`). A voltage drop must persist for three consecutive slow samples before the emergency Z lift fires, cutting false lifts from single noisy ADC readings.
+
+### Fixed
+- **LCD speed display buffer overflow and clamping.** The 4-digit speed fields used a 5-byte `char` buffer, which was one byte short for the terminating null. Top-row speed is now clamped to `9999` and negative values are pinned to `0`; the bottom-row cut-speed field gets the same clamping. Buffers widened to 8 bytes to leave headroom.
+
+### Notes
+- Documentation refreshed: `CLAUDE.md` has been merged into `AGENTS.md`, which is now the single agent-facing guide. `README.md` was updated to cover the v2.2.2 → v2.3.2 changes, the `Z_DIR_INVERT` flag, and the explicit anti-dive lift behavior.
+
+## [2.3.2] - 2026-05-26
+
+### Added
+- **`Z_DIR_INVERT` build flag for Z direction polarity.** If your driver wiring makes the torch move down when the firmware commands up, set `-D Z_DIR_INVERT=1` in `platformio.ini` instead of rewiring. The flag is passed to `AccelStepper::setPinsInverted()` and flips the DIR pin output so the firmware's "positive steps = up" contract stays correct for both PID corrections and anti-dive lift.
+
+## [2.3.1] - 2026-05-26
+
+### Fixed
+- **Anti-dive now performs an explicit Z lift.** The previous implementation relied on an accidental side-effect: the stepper target stayed at `0` and `runMotor()` happened to pull the torch toward its startup position. That was implicit, unconfigurable, and fragile. The new behavior commands `moveTo(currentPosition + ANTI_DIVE_LIFT_STEPS)` using an aggressive envelope (`ANTI_DIVE_LIFT_SPEED=5000`, `ANTI_DIVE_LIFT_ACCEL=20000`) and restores normal PID motion when the condition clears.
+
+### Changed
+- **Anti-dive lift height is now a build flag:** `-D ANTI_DIVE_LIFT_MM=3.0` (default 3 mm). Speed and acceleration remain fixed in `Config.h` because they are safety-critical.
+- **`runMotor()` gates `stepper.run()` while anti-dive is active**, removing the latent conflict where both `run()` and the PID's `runSpeed()` were trying to drive the same motor.
+
+## [2.3.0] - 2026-05-26
+
+### Changed
+- **Dead-code cleanup across `src/`.** Removed ~90 lines of unused constants, methods, and includes surfaced by a full source audit (`ANTI_DIVE_DURATION_MIN/MAX`, `ENABLE_Z_PIN`, `readRawVoltage()`, `resetSlowFilter()`, unused `DisplayManager` helpers, etc.). No functional changes.
+- Renamed `performAntiDiveLift()` → `holdDuringAntiDive()` to reflect what the function actually did before the v2.3.1 lift implementation.
+
+## [2.2.4] - 2026-05-26
+
+### Added
+- **`STEPPER_MAX_SPEED`, `STEPPER_ACCELERATION`, and `MAX_CUT_SPEED` are now exposed as build flags**, matching how `STEPS_PER_MM_*` and `DEFAULT_VOLTAGEDIVIDER` were already handled.
+
+### Notes
+- These three values are **tightly coupled to the PID gains** and define the THC's correction authority. The overrides in `platformio.ini` are commented out by default and wrapped in a hard warning; changing them without re-tuning PID can saturate the loop and cause torch dive or chatter.
+
+## [2.2.3] - 2026-05-20
+
+### Fixed
+- **Encoder could not tune `Ki`.** `KI_MAX` was `1.0` while the default `Ki` was `7.5`, so any attempt to adjust the integral term through the menu was silently rejected. `KI_MAX` is now `50`, consistent with `KP_MAX=1500` and `KD_MAX=100`.
+- **Removed unused `ENABLE_Z_PIN` define.** It duplicated `ENABLE_PIN` on pin 10 and was never referenced; removing it eliminates the apparent pin collision.
+
+## [2.2.2] - 2026-05-10
+
+### Changed
+- **Serial commands are now case-insensitive.** Typing `help`, `status`, or `debug` is accepted instead of requiring uppercase input.
+- **Unknown commands now echo back a hint** instead of being silently dropped, making it obvious when the serial link is alive.
+- Empty lines are ignored so a bare `Enter` can be used to probe the link without noise.
+
 ## [2.2.1] - 2026-04-24
 
 ### Fixed

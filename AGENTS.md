@@ -278,6 +278,19 @@ This firmware controls a **plasma cutting machine** and a **high-current arc**. 
 
 ---
 
+## Updating premium documentation
+
+When updating `Premium_Documentation/Premium Doc vX.Y.Z.html` to match a new firmware release:
+
+1. **Keep the previous edition intact.** Copy it to a new file named after the target firmware version (e.g. `Premium Doc v2.4.0.html`) and perform all edits on the copy.
+2. **Use the code as the source of truth.** Cross-check `CHANGELOG.md`, `README.md`, `src/Config.h`, and the relevant `src/*.cpp/.h` modules for accurate defaults, thresholds, timing, and behavior.
+3. **Update version metadata everywhere.** Sync the `<title>`, sidebar version badge, hero subtitle/footer, and the "tracks firmware" footer line.
+4. **Synchronize affected content sections.** Typical areas that change between releases are: Features, Anti-dive, Serial monitoring, LCD screens, Build-flag reference, Bench testing, and the Changelog table.
+5. **Preserve structure and images.** Do not reorganize sections or replace image references unless explicitly requested. If the user mentions images are still "à dessin" / to be drawn, leave the `<img>` tags and captions as-is.
+6. **Validate the result.** Run a quick well-formedness check on the new HTML file (balanced tags, no broken escapes) before considering the task done.
+
+---
+
 ## Notes for AI agents
 
 - `Config.h` is the single source of truth for pins, defaults, and limits. When asked to make a value tunable, prefer adding it there or exposing it as a `platformio.ini` build flag.
