@@ -133,6 +133,7 @@ private:
     // THC state
     bool thcActive;
     bool lastThcActive;
+    unsigned long thcActiveStartTime;
     SpeedMonitor* speedMonitor;
 
     // Re-stabilization after THC_OFF -> THC_ON

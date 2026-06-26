@@ -188,6 +188,12 @@ const int POSITION_HISTORY_SIZE = 20;               // ~2 seconds
 // that must be integrated before anti-dive can arm. 50 * 10 ms = 500 ms.
 const int SLOW_FILTER_CONVERGE_SAMPLES = 50;
 
+// Anti-dive ignore period after THC becomes active. The first seconds after
+// arc transfer contain energetic pierce/kerf transients and the slow filter
+// is still settling; disabling anti-dive during this window avoids false
+// lifts while still allowing normal PID height correction.
+const unsigned long ANTI_DIVE_IGNORE_AFTER_START_MS = 2000;  // ms
+
 // ============================================================================
 // ANTI-DIVE DISPLAY PARAMETERS
 // ============================================================================

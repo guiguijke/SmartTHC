@@ -51,6 +51,7 @@ THCController::THCController()
     , plasmaActiveTime(0)
     , thcActive(false)
     , lastThcActive(false)
+    , thcActiveStartTime(0)
     , speedMonitor(nullptr)
     , prevThcOff(false)
     , thcOnStabilized(true)
@@ -245,8 +246,12 @@ void THCController::readAndFilterVoltage(unsigned long currentTime) {
     // at 1 kHz, acceptable).
     const bool gateNow = plasmaPinLow && arcDetected;
 
+    // Freeze the slow reference while an anti-dive lift is in progress.
+    // Integrating void/high-voltage samples during the lift pollutes the
+    // reference and causes immediate re-triggers when the lift times out.
     if (gateNow && slowAverageReady &&
-        (currentTime - lastSlowSampleTime >= SLOW_SAMPLE_INTERVAL_MS)) {
+        (currentTime - lastSlowSampleTime >= SLOW_SAMPLE_INTERVAL_MS) &&
+        !antiDiveActive) {
 
         float avgRaw = slowAverageSum / SLOW_AVERAGE_SIZE;
 
@@ -288,7 +293,8 @@ void THCController::updateAntiDive(unsigned long currentTime) {
                         plasmaPinLow &&
                         plasmaStabilized &&
                         thcActive &&
-                        slowFilterConverged);
+                        slowFilterConverged &&
+                        (currentTime - thcActiveStartTime >= ANTI_DIVE_IGNORE_AFTER_START_MS));
 
     // Relative threshold: scales with plasma operating voltage. A hard minimum
     // keeps low-setpoint setups safe.
@@ -340,6 +346,14 @@ void THCController::updateAntiDive(unsigned long currentTime) {
             stepper.setMaxSpeed(STEPPER_MAX_SPEED);
             stepper.setAcceleration(STEPPER_ACCELERATION);
             stepper.moveTo(stepper.currentPosition());
+
+            // Re-seed the slow reference with the current arc voltage so the
+            // next anti-dive decision compares against the post-lift condition,
+            // not the pre-lift reference. Resetting the convergence gate also
+            // provides a 500 ms cooldown before anti-dive can re-arm.
+            reseedSlowFilter(uncorrectedFast);
+            slowFilterSamplesSinceReseed = 0;
+            slowFilterConverged = false;
         }
     }
 }
@@ -429,6 +443,7 @@ void THCController::updateTHCState(unsigned long currentTime) {
         if (thcActiveNew) {
             pid.start();
             pid.reset();
+            thcActiveStartTime = currentTime;
         } else {
             pid.stop();
         }

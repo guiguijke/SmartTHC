@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.5.1] - unreleased
+
+### Fixed
+- **Anti-dive re-trigger storm during long void crossings.** While an anti-dive lift was active, the slow voltage reference kept integrating the high arc voltage, so the reference rose toward the fast voltage. When the 1000 ms lift timeout expired, the fast voltage was still well above the elevated reference, causing immediate re-trigger and repeated Z lifts. The slow filter is now frozen during anti-dive, and on release it is re-seeded to the current arc voltage with the convergence gate reset, giving a 500 ms cooldown before anti-dive can re-arm.
+- **False first anti-dive trigger at cut start.** The slow filter is re-seeded when the plasma stabilizes, but the first second or two of cutting still contains pierce/kerf transients and the reference has not fully converged to the steady cut voltage. Anti-dive is now disabled for 2 s after THC becomes active, while normal PID height correction remains active.
+
+### Added
+- New constant `ANTI_DIVE_IGNORE_AFTER_START_MS` (default 2000 ms) in `src/Config.h`.
+
 ## [2.5.0] - 2026-06-26
 
 ### Fixed
