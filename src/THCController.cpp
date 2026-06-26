@@ -84,7 +84,9 @@ THCController::THCController()
 
 void THCController::begin() {
     // Configure pins
+#if ARC_OK_PIN
     pinMode(PLASMA_PIN, INPUT);
+#endif
     pinMode(ENABLE_PIN, INPUT_PULLUP);
     pinMode(THC_OFF_PIN, INPUT);
     pinMode(SWITCH1, OUTPUT);
@@ -328,7 +330,11 @@ void THCController::updateAntiDive(unsigned long currentTime) {
 
 void THCController::updatePlasmaState(unsigned long currentTime) {
     // Read inputs
+#if ARC_OK_PIN
     plasmaPinLow = (digitalRead(PLASMA_PIN) == LOW);
+#else
+    plasmaPinLow = (fastVoltage > ARC_OK_FALLBACK_VOLTAGE);
+#endif
     enablePinLow = (digitalRead(ENABLE_PIN) == LOW);
     thcOff = (digitalRead(THC_OFF_PIN) == HIGH);
 
