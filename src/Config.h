@@ -159,8 +159,17 @@ const unsigned long PID_INTERVAL_US = 1000;         // us - 1kHz
 // ============================================================================
 
 const unsigned long MAX_ANTI_DIVE_DURATION = 1000;  // ms - max total duration
-const float DROP_THRESHOLD = 5.0f;                  // V - activation threshold
+
+// Anti-dive activation threshold. Relative to the voltage setpoint so the
+// gate scales naturally with plasma cutters that run at higher arc voltages
+// (e.g. Hypertherm 45A Sync). A hard minimum keeps small-setpoint setups safe.
+const float ANTI_DIVE_THRESHOLD_RATIO = 0.05f;      // 5 % of setpoint
+const float ANTI_DIVE_THRESHOLD_MIN   = 5.0f;       // absolute minimum (V)
 const float RETURN_THRESHOLD = 3.0f;                // V - deactivation threshold
+
+// Temporal confirmation: ignore short pierce/kerf spikes. 30 ms was too short
+// for the energetic pierce transient of a 45 A plasma.
+const unsigned long ANTI_DIVE_CONFIRM_MS = 100;     // ms (was 30 ms)
 
 // Emergency Z retract envelope used during anti-dive. Deliberately faster
 // than the PID envelope (STEPPER_MAX_SPEED / STEPPER_ACCELERATION) so the
@@ -174,6 +183,10 @@ const float ANTI_DIVE_LIFT_ACCEL = 20000.0f;        // steps/s² - aggressive ra
 // Position history for anti-dive
 const int POSITION_HISTORY_INTERVAL = 100;          // ms
 const int POSITION_HISTORY_SIZE = 20;               // ~2 seconds
+
+// Slow-filter convergence gate: number of samples after plasma stabilization
+// that must be integrated before anti-dive can arm. 50 * 10 ms = 500 ms.
+const int SLOW_FILTER_CONVERGE_SAMPLES = 50;
 
 // ============================================================================
 // ANTI-DIVE DISPLAY PARAMETERS
@@ -255,7 +268,6 @@ const unsigned long SLOW_SAMPLE_INTERVAL_MS = 10;   // 100 Hz update rate for sl
 const float INPUT_ALPHA = 0.95f;                    // Fast low-pass
 const float ALPHA_SLOW = 0.8f;                      // Slow low-pass
 const int N_SLOW = 200;                             // Slow average
-const unsigned long ANTI_DIVE_CONFIRM_MS = 30;      // Minimum drop duration before triggering anti-dive
 
 // ============================================================================
 // LCD

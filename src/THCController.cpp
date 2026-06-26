@@ -62,6 +62,8 @@ THCController::THCController()
     , antiDiveStartTime(0)
     , voltageAtActivation(0.0f)
     , justAntiDiveActivated(false)
+    , slowFilterConverged(false)
+    , slowFilterSamplesSinceReseed(0)
     , smoothedOutput(0.0)
     , adcWarmedUp(false)
     , adcStartTime(0)
@@ -250,11 +252,20 @@ void THCController::readAndFilterVoltage(unsigned long currentTime) {
 
         if (!slowInit || !slowGateWasOn) {
             reseedSlowFilter(avgRaw);
+            slowFilterSamplesSinceReseed = 0;
+            slowFilterConverged = false;
         } else {
             slowSum -= slowSamples[slowIdx];
             slowSamples[slowIdx] = avgRaw;
             slowSum += avgRaw;
             slowIdx = (slowIdx + 1) % N_SLOW;
+
+            if (!slowFilterConverged) {
+                slowFilterSamplesSinceReseed++;
+                if (slowFilterSamplesSinceReseed >= SLOW_FILTER_CONVERGE_SAMPLES) {
+                    slowFilterConverged = true;
+                }
+            }
         }
 
         float slowRawAvg = slowSum / N_SLOW;
@@ -276,10 +287,15 @@ void THCController::updateAntiDive(unsigned long currentTime) {
     bool canActivate = (adcWarmedUp &&
                         plasmaPinLow &&
                         plasmaStabilized &&
-                        thcActive);
-    bool dropDetected = (fastVoltage > slowVoltage + DROP_THRESHOLD);
+                        thcActive &&
+                        slowFilterConverged);
 
-    // Activation with temporal confirmation: ignore short spikes (< 30 ms)
+    // Relative threshold: scales with plasma operating voltage. A hard minimum
+    // keeps low-setpoint setups safe.
+    float dropThreshold = max(ANTI_DIVE_THRESHOLD_MIN, (float)Setpoint * ANTI_DIVE_THRESHOLD_RATIO);
+    bool dropDetected = (fastVoltage > slowVoltage + dropThreshold);
+
+    // Activation with temporal confirmation: ignore short spikes (< 100 ms)
     // that are likely noise or normal transients. Only commit to a lift if
     // the drop condition persists.
     if (!antiDiveActive) {
@@ -362,12 +378,16 @@ void THCController::updatePlasmaState(unsigned long currentTime) {
                 // false triggers during the first seconds of cutting.
                 if (slowAverageReady) {
                     reseedSlowFilter(uncorrectedFast);
+                    slowFilterSamplesSinceReseed = 0;
+                    slowFilterConverged = false;
                 }
             }
         }
     } else if (!plasmaPinLow) {
         plasmaActiveTime = 0;
         plasmaStabilized = false;
+        slowFilterConverged = false;
+        slowFilterSamplesSinceReseed = 0;
     }
 
     lastPlasmaStabilized = plasmaStabilized;

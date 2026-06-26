@@ -60,6 +60,7 @@ public:
     bool isArcDetected() const { return arcDetected; }
     bool isTHCActive() const { return thcActive; }
     bool isAntiDiveActive() const { return antiDiveActive; }
+    bool isSlowFilterConverged() const { return slowFilterConverged; }
     bool isEnableLow() const { return enablePinLow; }
     bool isTHCOff() const { return thcOff; }
     bool isThcOnReStabilized() const { return thcOnStabilized; }
@@ -149,6 +150,10 @@ private:
     unsigned long antiDiveStartTime;
     float voltageAtActivation;
     bool justAntiDiveActivated;
+
+    // Slow-filter convergence gate (prevents false anti-dive at cut start)
+    bool slowFilterConverged;
+    int  slowFilterSamplesSinceReseed;
 
     // Smoothing
     double smoothedOutput;
