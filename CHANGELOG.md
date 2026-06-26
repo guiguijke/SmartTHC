@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.5.0] - 2026-06-26
+
+### Fixed
+- **Premature anti-dive triggers at cut start with high-voltage plasma cutters** (e.g. Hypertherm 45A Sync). The fixed 5 V drop threshold and 30 ms confirmation were too sensitive for the higher arc voltages and energetic pierce transients of 45 A-class machines. Anti-dive now uses a relative threshold and waits for the slow filter to converge before arming.
+
+### Changed
+- **Anti-dive activation threshold is now relative to the voltage setpoint**: `max(5 V, 5 % of setpoint)`. At the user's 138 V setpoint the effective threshold is 6.9 V instead of 5 V.
+- **Anti-dive confirmation time raised from 30 ms to 100 ms** to ignore short pierce/kerf spikes.
+
+### Added
+- **Slow-filter convergence gate.** After the plasma stabilizes, anti-dive is blocked until 50 new slow-filter samples (500 ms) have been integrated. This prevents the reference from deciding lifts while it is still settling from pierce voltage to cut voltage.
+- **New serial diagnostic state `WAIT_SLOW_FILTER`** in the THC activation chain, reported by `STATUS` and `DEBUG` logs.
+
 ## [2.4.0] - 2026-06-21
 
 ### Changed
