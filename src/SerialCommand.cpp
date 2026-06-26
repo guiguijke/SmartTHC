@@ -111,6 +111,7 @@ const char* SerialCommand::currentStateLabel(THCController* thc, SpeedMonitor* s
     if (!thc->isThcOnReStabilized())  return "WAIT_RESTAB";
     if (!thc->isCutMotionGateReady()) return "WAIT_MOTION";
     if (!speed->isSpeedOK())          return "WAIT_SPEED";
+    if (!thc->isSlowFilterConverged())return "WAIT_SLOW_FILTER";
     if (thc->isAntiDiveActive())      return "ANTI_DIVE";
     if (thc->isTHCActive())           return "THC_ACTIVE";
     return "ARMED";
@@ -126,6 +127,7 @@ const char* SerialCommand::thcInactiveReason(THCController* thc, SpeedMonitor* s
     if (!thc->isArcDetected())        return "ARC_LOST";
     if (!speed->isSpeedOK())          return "SPEED_LOW";
     if (thc->isAntiDiveActive())      return "ANTI_DIVE";
+    if (!thc->isSlowFilterConverged())return "SLOW_FILTER_WAIT";
     if (!thc->isThcOnReStabilized())  return "RESTAB_WAIT";
     if (!thc->isCutMotionGateReady()) return "MOTION_GATE_WAIT";
     return "UNKNOWN";
