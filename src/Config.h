@@ -19,6 +19,15 @@
 #define THC_OFF_PIN     11  // Input: THC off signal
 #define PLASMA_VOLTAGE  A0  // ADC: plasma voltage
 
+// ARC_OK handling: 1 = read PLASMA_PIN, 0 = derive arc OK from plasma voltage
+#ifndef ARC_OK_PIN
+#define ARC_OK_PIN 1
+#endif
+
+#ifndef ARC_OK_FALLBACK_VOLTAGE
+#define ARC_OK_FALLBACK_VOLTAGE 50.0f
+#endif
+
 // Z motor control
 #define DIR_PIN         8   // Direction
 #define STEP_PIN        6   // Step
