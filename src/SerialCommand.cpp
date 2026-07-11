@@ -33,6 +33,7 @@ SerialCommand::SerialCommand()
     , antiDiveStartFast(0.0f)
     , antiDiveStartSlow(0.0f)
     , firstStatusLine(true)
+    , cumulativeAntiDiveLift(0)
 {
 }
 
@@ -176,6 +177,9 @@ void SerialCommand::detectEvents(unsigned long currentTime, THCController* thc, 
     if (thcActive != lastThcActive) {
         Serial.print("EV: t="); Serial.print(currentTime);
         if (thcActive) {
+            // Start of a new cut — reset the per-cut anti-dive lift counter
+            // so cumulativeAntiDiveLift tracks lifts within this cut only.
+            cumulativeAntiDiveLift = 0;
             Serial.print(" THC active (v=");
             Serial.print(thc->getFastVoltage(), 1);
             Serial.print(" tgt=");
@@ -192,20 +196,30 @@ void SerialCommand::detectEvents(unsigned long currentTime, THCController* thc, 
             antiDiveStartMs   = currentTime;
             antiDiveStartFast = thc->getFastVoltage();
             antiDiveStartSlow = thc->getSlowVoltage();
+            cumulativeAntiDiveLift += ANTI_DIVE_LIFT_STEPS;  // one lift commanded
             Serial.print(" anti-dive TRIGGERED fast=");
             Serial.print(antiDiveStartFast, 1);
             Serial.print(" slow=");
             Serial.print(antiDiveStartSlow, 1);
             Serial.print(" drop=+");
             Serial.print(antiDiveStartFast - antiDiveStartSlow, 1);
-            Serial.println("V");
+            Serial.print("V pos=");
+            Serial.print(thc->getMotorPosition());
+            Serial.print(" cum_lift=");
+            Serial.println(cumulativeAntiDiveLift);
         } else {
             unsigned long dur = currentTime - antiDiveStartMs;
+            const char* reason = (dur >= MAX_ANTI_DIVE_DURATION) ? "timeout" : "return";
             Serial.print(" anti-dive RELEASED duration=");
             Serial.print(dur);
-            Serial.print("ms fast=");
+            Serial.print("ms reason=");
+            Serial.print(reason);
+            Serial.print(" fast=");
             Serial.print(thc->getFastVoltage(), 1);
-            Serial.println("V");
+            Serial.print("V pos=");
+            Serial.print(thc->getMotorPosition());
+            Serial.print(" cum_lift=");
+            Serial.println(cumulativeAntiDiveLift);
         }
     }
 
@@ -240,7 +254,12 @@ void SerialCommand::printStatusLine(unsigned long currentTime, THCController* th
     if (zpos >= 0) Serial.print('+');
     Serial.print(zpos);
     Serial.print(" ad=");
-    Serial.println(thc->isAntiDiveActive() ? "ACTIVE" : "off");
+    if (thc->isAntiDiveActive()) {
+        Serial.print("ACTIVE cum_lift=");
+        Serial.println(cumulativeAntiDiveLift);
+    } else {
+        Serial.println("off");
+    }
 }
 
 void SerialCommand::logStatus(unsigned long currentTime, THCController* thc, SpeedMonitor* speed) {

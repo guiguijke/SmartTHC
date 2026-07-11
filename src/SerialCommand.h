@@ -50,6 +50,12 @@ private:
     float antiDiveStartSlow;
     bool firstStatusLine;
 
+    // Anti-dive lift accumulator (steps) — reset on each THC activation
+    // (start of a cut) so it tracks cumulative lift within one cut. If this
+    // grows well beyond ANTI_DIVE_LIFT_STEPS during a single cut, the
+    // anti-dive is re-triggering (runaway).
+    long cumulativeAntiDiveLift;
+
     void processCommand(String& command, EEPROMManager* eeprom, THCController* thc, SpeedMonitor* speed);
     void printStatus(THCController* thc, SpeedMonitor* speed);
     void detectEvents(unsigned long currentTime, THCController* thc, SpeedMonitor* speed);
