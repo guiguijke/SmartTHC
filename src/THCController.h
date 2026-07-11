@@ -168,6 +168,7 @@ private:
     void updateAntiDive(unsigned long currentTime);
     void updatePlasmaState(unsigned long currentTime);
     void updateTHCState(unsigned long currentTime);
+    void updateRelays();
     void controlMotor(unsigned long currentTime);
     void normalTHCControl();
     void reseedSlowFilter(float avgRaw);

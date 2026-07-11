@@ -141,6 +141,10 @@ void THCController::update(unsigned long currentTime) {
     // Update THC state
     updateTHCState(currentTime);
 
+    // Drive Z-ownership relays AFTER thcActive is computed so they reflect
+    // the current tick's gating decision, not the previous one.
+    updateRelays();
+
     // Control motor
     controlMotor(currentTime);
 }
@@ -368,15 +372,6 @@ void THCController::updatePlasmaState(unsigned long currentTime) {
     enablePinLow = (digitalRead(ENABLE_PIN) == LOW);
     thcOff = (digitalRead(THC_OFF_PIN) == HIGH);
 
-    // Control switches
-    if (plasmaPinLow) {
-        digitalWrite(SWITCH1, LOW);
-        digitalWrite(SWITCH2, LOW);
-    } else {
-        digitalWrite(SWITCH1, HIGH);
-        digitalWrite(SWITCH2, HIGH);
-    }
-
     // Stabilization handling
     if (plasmaPinLow && !plasmaStabilized) {
         if (plasmaActiveTime == 0) {
@@ -451,6 +446,25 @@ void THCController::updateTHCState(unsigned long currentTime) {
     }
 
     thcActive = thcActiveNew;
+}
+
+void THCController::updateRelays() {
+    // SWITCH1/SWITCH2 transfer Z ownership to the THC.
+    //
+    // They follow thcActive — NOT plasmaPinLow — so the CNC keeps ownership
+    // of Z through the pierce phase and the descent to cut height. The THC
+    // only takes the Z axis over once the full gating chain has cleared
+    // (arc detected + stabilized + THC_ON re-stab + cut-motion gate), i.e.
+    // when thcActive is true. Switching on plasmaPinLow alone was a bug: the
+    // relays transferred Z to the THC during the pierce, before the THC's own
+    // safety gate had opened, leaving the Z axis in limbo.
+    if (thcActive) {
+        digitalWrite(SWITCH1, LOW);
+        digitalWrite(SWITCH2, LOW);
+    } else {
+        digitalWrite(SWITCH1, HIGH);
+        digitalWrite(SWITCH2, HIGH);
+    }
 }
 
 void THCController::controlMotor(unsigned long currentTime) {
