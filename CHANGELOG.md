@@ -2,13 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
-## [2.5.1] - unreleased
+## [2.5.1] - 2026-07-11
 
 ### Fixed
+- **Z-ownership relays transferred during the pierce phase.** `SWITCH1`/`SWITCH2` (which hand the Z axis from the CNC controller to the THC) used to switch on `plasmaPinLow` (arc transfer), so the relays closed as soon as the arc struck — before the THC's own safety gate (`cutMotionGateReady` + stabilization) had opened. During the entire pierce and the descent to cut height, neither the CNC nor the THC could properly manage Z height. The relays now follow `thcActive`, so Z ownership is only transferred once the full gating chain has cleared. The relay drive was also moved out of `updatePlasmaState()` into a new `updateRelays()` called after `updateTHCState()`, so the relay state reflects the current tick's decision instead of the previous one.
 - **Anti-dive re-trigger storm during long void crossings.** While an anti-dive lift was active, the slow voltage reference kept integrating the high arc voltage, so the reference rose toward the fast voltage. When the 1000 ms lift timeout expired, the fast voltage was still well above the elevated reference, causing immediate re-trigger and repeated Z lifts. The slow filter is now frozen during anti-dive, and on release it is re-seeded to the current arc voltage with the convergence gate reset, giving a 500 ms cooldown before anti-dive can re-arm.
 - **False first anti-dive trigger at cut start.** The slow filter is re-seeded when the plasma stabilizes, but the first second or two of cutting still contains pierce/kerf transients and the reference has not fully converged to the steady cut voltage. Anti-dive is now disabled for 2 s after THC becomes active, while normal PID height correction remains active.
 
 ### Added
+- **Anti-dive lift telemetry.** A cumulative lift counter (`cum_lift`, in steps) is now reset at the start of each cut and incremented on every anti-dive trigger. It appears in the `EV: anti-dive TRIGGERED`, `EV: anti-dive RELEASED`, and periodic `ad=ACTIVE` status lines. If `cum_lift` grows well beyond `ANTI_DIVE_LIFT_STEPS` during a single cut, the anti-dive is re-triggering — the counter exists to gather field evidence before deciding on a behavioral fix.
+- **Anti-dive RELEASED now reports a reason** (`return` vs `timeout`) so timeout-forced releases (the scenario most likely to expose a runaway) are distinguishable from normal voltage-return releases in the logs.
+- Anti-dive TRIGGERED/RELEASED events now include the Z motor position (`pos=`) for tracking cumulative Z drift.
 - New constant `ANTI_DIVE_IGNORE_AFTER_START_MS` (default 2000 ms) in `src/Config.h`.
 
 ## [2.5.0] - 2026-06-26
