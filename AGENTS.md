@@ -169,7 +169,7 @@ The firmware is **modular object-oriented C++** orchestrated by `src/main.cpp`.
 2. Update the rotary encoder and detect button clicks.
 3. Handle screen transitions (8-screen menu).
 4. Apply parameter adjustments from encoder deltas.
-5. Update the speed monitor and record Z position history.
+5. Update the speed monitor.
 6. Run the THC/PID update at 1 kHz.
 7. Pump the stepper motor (`runMotor()`).
 8. Update the LCD every 250 ms.
@@ -184,7 +184,7 @@ The firmware is **modular object-oriented C++** orchestrated by `src/main.cpp`.
 | `THCController` | `src/THCController.h/cpp` | ADC voltage reading, dual filtering, PID compute, anti-dive detection, Z stepper commands, THC gating chain |
 | `DisplayManager` | `src/DisplayManager.h/cpp` | 16x2 I2C LCD, 8-screen menu, status icons, blinking anti-dive message, selective redraw to reduce flicker |
 | `EncoderManager` | `src/EncoderManager.h/cpp` | KY-040 rotary encoder decoding, button state-machine debounce, click lockout during rotation |
-| `SpeedMonitor` | `src/SpeedMonitor.h/cpp` | X/Y step-pulse ISRs, torch speed calculation, hysteresis-based motion detection, cut-motion gate, position history |
+| `SpeedMonitor` | `src/SpeedMonitor.h/cpp` | X/Y step-pulse ISRs, torch speed calculation, hysteresis-based motion detection, cut-motion gate |
 | `EEPROMManager` | `src/EEPROMManager.h/cpp` | Load/save 7 tunable parameters, validation, deferred writes (1 s batching) to reduce flash wear |
 | `SerialCommand` | `src/SerialCommand.h/cpp` | 115200 serial CLI, `DEBUG`/`STATUS`/`RESET_EEPROM`/`HELP`, structured `key=value` logging, edge-triggered event stream |
 | `Config` | `src/Config.h` | All pin definitions, timing intervals, default PID coefficients, thresholds — no magic numbers elsewhere |

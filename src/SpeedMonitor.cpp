@@ -28,18 +28,10 @@ SpeedMonitor::SpeedMonitor()
     , lastStepTime(0)
     , totalStepX(0)
     , totalStepY(0)
-    , positionHistoryIndex(0)
-    , lastPositionRecordTime(0)
 {
     // Initialize filter array
     for (int i = 0; i < SPEED_FILTER_SIZE; i++) {
         speedReadings[i] = 0.0f;
-    }
-
-    // Initialize position history
-    for (int i = 0; i < POSITION_HISTORY_SIZE; i++) {
-        positionHistory[i].time = 0;
-        positionHistory[i].position = 0;
     }
 }
 
@@ -150,33 +142,6 @@ void SpeedMonitor::calculateSpeed(unsigned long currentTime) {
 
 bool SpeedMonitor::hasCutMotionStableSince(unsigned long timestamp) const {
     return cutMotionDetected && cutMotionStartTime > 0 && cutMotionStartTime <= timestamp;
-}
-
-long SpeedMonitor::getPositionAtTime(unsigned long targetTime, long defaultPos) const {
-    long closestPos = defaultPos;
-    unsigned long closestDiff = 0xFFFFFFFFUL;
-
-    for (int i = 0; i < POSITION_HISTORY_SIZE; i++) {
-        unsigned long hTime = positionHistory[i].time;
-        if (hTime == 0) continue;
-
-        unsigned long diff = (unsigned long)abs((long)targetTime - (long)hTime);
-        if (diff < closestDiff) {
-            closestDiff = diff;
-            closestPos = positionHistory[i].position;
-        }
-    }
-
-    return closestPos;
-}
-
-void SpeedMonitor::recordPosition(unsigned long currentTime, long position) {
-    if (currentTime - lastPositionRecordTime >= POSITION_HISTORY_INTERVAL) {
-        positionHistory[positionHistoryIndex].time = currentTime;
-        positionHistory[positionHistoryIndex].position = position;
-        positionHistoryIndex = (positionHistoryIndex + 1) % POSITION_HISTORY_SIZE;
-        lastPositionRecordTime = currentTime;
-    }
 }
 
 // Interrupt handlers

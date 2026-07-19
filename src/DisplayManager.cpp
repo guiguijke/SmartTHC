@@ -32,7 +32,6 @@ DisplayManager::DisplayManager()
     , lastEnableLow(false)
     , lastPlasmaLow(false)
     , lastThcOff(false)
-    , lastCutSpeed(-1.0f)
     , lastTempCorrectionFactor(-1.0f)
     , lastUncorrectedFast(-1.0f)
     , lastAdjustedVoltage(-1.0f)
@@ -60,7 +59,7 @@ void DisplayManager::createCustomCharacters() {
 
 void DisplayManager::update(unsigned long currentTime, int currentScreen,
                             THCController* thc, SpeedMonitor* speedMonitor,
-                            float tempCorrectionFactor, int encoderDelta) {
+                            float tempCorrectionFactor) {
     // Update Anti-Dive message state
     updateAntiDiveDisplay(currentTime);
 
@@ -353,7 +352,6 @@ void DisplayManager::resetCachedValues() {
     lastEnableLow = false;
     lastPlasmaLow = false;
     lastThcOff = false;
-    lastCutSpeed = -1.0f;
     lastTempCorrectionFactor = -1.0f;
     lastUncorrectedFast = -1.0f;
     lastAdjustedVoltage = -1.0f;

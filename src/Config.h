@@ -180,10 +180,6 @@ const unsigned long ANTI_DIVE_CONFIRM_MS = 100;     // ms (was 30 ms)
 const float ANTI_DIVE_LIFT_SPEED = 5000.0f;         // steps/s - emergency retract speed
 const float ANTI_DIVE_LIFT_ACCEL = 20000.0f;        // steps/s² - aggressive ramp for snappy retract
 
-// Position history for anti-dive
-const int POSITION_HISTORY_INTERVAL = 100;          // ms
-const int POSITION_HISTORY_SIZE = 20;               // ~2 seconds
-
 // Slow-filter convergence gate: number of samples after plasma stabilization
 // that must be integrated before anti-dive can arm. 50 * 10 ms = 500 ms.
 const int SLOW_FILTER_CONVERGE_SAMPLES = 50;

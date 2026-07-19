@@ -65,7 +65,6 @@ THCController::THCController()
     , justAntiDiveActivated(false)
     , slowFilterConverged(false)
     , slowFilterSamplesSinceReseed(0)
-    , smoothedOutput(0.0)
     , adcWarmedUp(false)
     , adcStartTime(0)
 {
@@ -153,17 +152,24 @@ void THCController::runMotor() {
     // The motor is driven by two different AccelStepper modes depending on
     // state, and they MUST NOT both pump steps at the same time:
     //
-    //   - During normal cutting, normalTHCControl() calls runSpeed() at 1 kHz
-    //     to step the motor at the PID-commanded constant speed.
+    //   - During normal cutting, normalTHCControl() sets the PID-commanded
+    //     speed via setSpeed() at 1 kHz and runSpeed() is pumped here on
+    //     every loop iteration. This matters: runSpeed() issues at most one
+    //     step per call and does not catch up missed intervals, so calling
+    //     it only from the 1 kHz PID tick would cap the correction authority
+    //     at 1000 steps/s regardless of the commanded speed (up to ±2500).
     //   - During anti-dive, we instead command a position move via moveTo()
     //     and need run() pumped as fast as possible so the acceleration
     //     profile resolves smoothly within the dive window.
     //
     // run() and runSpeed() share the stepper's internal _speed state; calling
     // run() during normal cutting would fight runSpeed() and produce step
-    // glitching. Gating run() on antiDiveActive keeps the two regimes clean.
+    // glitching. antiDiveActive takes precedence over thcActive here, which
+    // keeps the two regimes clean.
     if (antiDiveActive) {
         stepper.run();
+    } else if (thcActive) {
+        stepper.runSpeed();
     }
 }
 
@@ -350,6 +356,10 @@ void THCController::updateAntiDive(unsigned long currentTime) {
             stepper.setMaxSpeed(STEPPER_MAX_SPEED);
             stepper.setAcceleration(STEPPER_ACCELERATION);
             stepper.moveTo(stepper.currentPosition());
+            // Clear the speed left over from the lift envelope so runSpeed()
+            // (pumped by runMotor() as soon as antiDiveActive clears) can't
+            // emit stale steps before the next PID tick sets a fresh speed.
+            stepper.setSpeed(0);
 
             // Re-seed the slow reference with the current arc voltage so the
             // next anti-dive decision compares against the post-lift condition,
@@ -479,7 +489,6 @@ void THCController::controlMotor(unsigned long currentTime) {
     if (thcActive) {
         normalTHCControl();
     } else {
-        smoothedOutput = 0.0;
         stepper.setSpeed(0);
     }
 }
@@ -488,14 +497,12 @@ void THCController::normalTHCControl() {
     pid.compute();
 
     double error = Setpoint - Input;
-    const float alpha = 0.5f; // Smoothing factor
 
     if (abs(error) > STEPPER_DEADZONE) {
-        smoothedOutput = alpha * Output + (1.0 - alpha) * smoothedOutput;
+        // setSpeed() persists between ticks: runMotor() pumps runSpeed() at
+        // full loop rate so the motor can actually track the commanded speed.
         stepper.setSpeed(Output);
-        stepper.runSpeed();
     } else {
-        smoothedOutput = 0.0;
         Output = 0.0;
         stepper.setSpeed(0);
     }
@@ -549,6 +556,5 @@ void THCController::clearAntiDiveJustActivated() {
 void THCController::reset() {
     pid.reset();
     stepper.setSpeed(0);
-    smoothedOutput = 0.0;
     antiDivePending = false;
 }

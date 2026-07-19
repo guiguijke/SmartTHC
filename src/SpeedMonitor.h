@@ -10,12 +10,6 @@
 #include <Arduino.h>
 #include "Config.h"
 
-// Position history structure
-struct PosHistory {
-    unsigned long time;
-    long position;
-};
-
 class SpeedMonitor {
 public:
     SpeedMonitor();
@@ -41,10 +35,6 @@ public:
     bool isCutMotionDetected() const { return cutMotionDetected; }
     bool hasCutMotionStableSince(unsigned long timestamp) const;
     unsigned long getCutMotionStartTime() const { return cutMotionStartTime; }
-
-    // Position history access (for anti-dive)
-    long getPositionAtTime(unsigned long targetTime, long defaultPos) const;
-    void recordPosition(unsigned long currentTime, long position);
 
     // Interrupt handlers (static for attachInterrupt)
     static void onStepX();
@@ -78,11 +68,6 @@ private:
     unsigned long lastStepTime;
     unsigned long totalStepX;
     unsigned long totalStepY;
-
-    // Position history
-    PosHistory positionHistory[POSITION_HISTORY_SIZE];
-    int positionHistoryIndex;
-    unsigned long lastPositionRecordTime;
 
     void calculateSpeed(unsigned long currentTime);
 };

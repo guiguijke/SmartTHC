@@ -157,9 +157,6 @@ void loop() {
     // ------------------------------------------------------------------------
     speedMonitor.update(currentTime);
 
-    // Record position for anti-dive
-    speedMonitor.recordPosition(currentTime, thc.getMotorPosition());
-
     // ------------------------------------------------------------------------
     // 5. THC controller update (PID, anti-dive, motor)
     // ------------------------------------------------------------------------
@@ -181,7 +178,7 @@ void loop() {
     // ------------------------------------------------------------------------
     if (currentTime - lastDisplayTime >= DISPLAY_INTERVAL) {
         display.update(currentTime, currentScreen, &thc, &speedMonitor,
-                       tempCorrectionFactor, encoderDelta);
+                       tempCorrectionFactor);
         lastDisplayTime = currentTime;
     }
 

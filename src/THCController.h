@@ -156,9 +156,6 @@ private:
     bool slowFilterConverged;
     int  slowFilterSamplesSinceReseed;
 
-    // Smoothing
-    double smoothedOutput;
-
     // Warm-up
     bool adcWarmedUp;
     unsigned long adcStartTime;

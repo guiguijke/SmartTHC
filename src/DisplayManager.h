@@ -33,7 +33,7 @@ public:
     // Display update
     void update(unsigned long currentTime, int currentScreen,
                 THCController* thc, SpeedMonitor* speedMonitor,
-                float tempCorrectionFactor, int encoderDelta);
+                float tempCorrectionFactor);
 
     // Anti-dive activation notification
     void notifyAntiDiveActivated();
@@ -57,7 +57,6 @@ private:
     bool lastEnableLow;
     bool lastPlasmaLow;
     bool lastThcOff;
-    float lastCutSpeed;
     float lastTempCorrectionFactor;
     float lastUncorrectedFast;
     float lastAdjustedVoltage;
