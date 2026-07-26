@@ -120,18 +120,37 @@ const float DEFAULT_KD = 2.0f;
 
 // ============================================================================
 // EEPROM ADDRESSES
+//
+// !!! LAYOUT NOTE — DO NOT RE-USE THESE SLOTS WITHOUT READING THIS !!!
+//
+// On the Uno R3 (AVR) a `double` is 4 bytes. On the Uno R4 Minima (Renesas
+// RA4M1 / ARM Cortex-M4, gnu++17) a `double` is 8 bytes (IEEE 754 binary64),
+// the same as `float`-vs-`double` promotion implies on a hard-FPU ARM target.
+// The PID gains Kp/Ki/Kd are stored as `double`, so each one occupies 8 bytes.
+//
+// v2.5.1 and earlier spaced these slots 4 bytes apart (an AVR-era leftover),
+// so Kp/Ki/Kd overlapped each other in flash and the init flag sat on top of
+// the upper bytes of Kd. That is why those versions could not persist Kp/Ki
+// (they read back as 0.0, which passed the `>= 0` validation and was never
+// replaced with the default). v2.5.2 spaces every `double` slot 8 bytes apart.
+//
+// The init flag was also moved to address 40 (previously virgin flash) AND its
+// magic value bumped 0xAA -> 0xAB. Both changes force every board flashed with
+// a v2.5.1-or-earlier layout to re-initialize on first boot with v2.5.2, so the
+// corrupted Kp/Ki/Kd slots are cleanly overwritten with defaults. Re-tune from
+// the LCD/serial after upgrading.
 // ============================================================================
 
 #define EEPROM_SETPOINT_ADDR            0
 #define EEPROM_CORRECTION_FACTOR_ADDR   4
 #define EEPROM_CUT_SPEED_ADDR           8
 #define EEPROM_THRESHOLD_RATIO_ADDR     12
-#define EEPROM_KP_ADDR                  16
-#define EEPROM_KI_ADDR                  20
-#define EEPROM_KD_ADDR                  24
-#define EEPROM_INITIALIZED_FLAG         28
+#define EEPROM_KP_ADDR                  16   // double = 8 bytes -> 16..23
+#define EEPROM_KI_ADDR                  24   // double = 8 bytes -> 24..31
+#define EEPROM_KD_ADDR                  32   // double = 8 bytes -> 32..39
+#define EEPROM_INITIALIZED_FLAG         40
 
-const byte EEPROM_INIT_FLAG_VALUE = 0xAA;
+const byte EEPROM_INIT_FLAG_VALUE = 0xAB;
 
 // ============================================================================
 // TIMINGS & INTERVALS

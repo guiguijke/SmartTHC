@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.5.2] - 2026-07-26
+
+### Fixed
+- **Kp, Ki and Kd did not persist across power cycles (Uno R4 Minima).** The EEPROM address layout was inherited from an AVR-era assumption where `double` is 4 bytes. On the RA4M1 (ARM Cortex-M4, hard FPU) a `double` is 8 bytes (binary64), so the 4-byte-spaced Kp/Ki/Kd slots overlapped each other in flash, and the "EEPROM initialized" magic flag sat on top of the upper bytes of Kd. Every write of one gain partially clobbered the next. Symptoms reported in the field and now explained: Kp and Ki reading back as `0.0` after a power cycle (a corrupted read that lands on exactly `0.0` passes the `>= 0` validation, so it is never replaced with the default), Kd surviving inconsistently, and persistence requiring several set / power-cycle iterations to "stick". Identical on two different boards — consistent with a firmware bug, not a write-timing issue.
+
+  The `double` slots (Kp/Ki/Kd) are now spaced **8 bytes apart** (`EEPROM_KP_ADDR=16`, `EEPROM_KI_ADDR=24`, `EEPROM_KD_ADDR=32`). The `float` slots (setpoint, correction factor, cut speed, threshold ratio) were already 4 bytes apart and remain correct.
+
+### Changed
+- **Forced EEPROM re-initialization on first boot with v2.5.2.** The "initialized" flag has been moved to a previously-virgin address (`EEPROM_INITIALIZED_FLAG` 28 → 40) **and** its magic value bumped (`0xAA` → `0xAB`). Both changes guarantee that every board previously flashed with v2.5.1 or earlier will detect an uninitialized EEPROM on its first v2.5.2 boot and cleanly overwrite the corrupted Kp/Ki/Kd slots with defaults. **Action required after upgrading:** re-enter your tuned PID gains (and cut speed) via the LCD or serial, then power-cycle to confirm they persist.
+
+### Notes
+- This is a data-layout fix only. The deferred-write batching, validation ranges, and save/load API are unchanged. No other behavior is affected.
+- Thanks to Russ S. for the field report that surfaced this — his PIC18 EEPROM-timing anecdote was the clue that pointed at a write-path bug rather than a controller fault.
+
 ## [2.5.1] - 2026-07-11
 
 ### Fixed
