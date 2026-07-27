@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.6.0] - 2026-07-28
+
+### Added
+- **Live Z-height readout on the main LCD screen.** The 4 status icons (enable / direction-arrow / THC / plasma) on screen 0 have been replaced by a live Z-axis delta value, so the torch height is visible during a cut without scrolling through a menu. New layout:
+  ```
+  Act→ 121.2V   590
+  Tgt→ 122.0V Z+1.2
+  ```
+  The `Z+1.2` field shows the Z-axis position in millimetres **relative to the cut-start height**: it is zeroed at the exact moment the THC takes ownership of the Z axis (the `thcActive` false→true edge, i.e. when all gates clear and the THC begins controlling height), so each cut starts at `Z 0.0` and the readout tracks drift during that cut. It reflects both normal PID corrections and anti-dive lifts. When the THC is idle the field shows `Z----` (no reference available). Absolute height would require a Z home switch, which the current hardware does not have — this relative readout is what the stepper position can actually tell us.
+
+### Changed
+- **THC state is now encoded in the label arrows** (`Act:` / `Tgt:`) instead of the old icon column:
+  - `Act:` and `Tgt:` — THC idle
+  - `Tgt→` with `Act:` — THC engaged (owns Z) but holding steady (PID output inside the deadzone)
+  - `Tgt→` with `Act→` — THC engaged **and** actively correcting
+  This is finer-grained than the previous single direction icon and frees the column for the Z readout. The arrow is a custom CGRAM glyph (`CHAR_ARROW_RIGHT`); the HD44780 ROM arrow at `0x7E` was deliberately avoided because it renders as a left arrow on the A00 character ROM that most I2C backpacks ship with.
+
+### Internal
+- **Dead-code cleanup.** A second full audit (the first was at v2.3.0) removed 10 confirmed-dead items with no behavioral change: `SPEED_UNIT` and `DIST_PER_STEP_Z` (Config.h), two orphan function prototypes (main.cpp), the unused `tempVoltageCorrectionFactor` member (THCController), the unused `lastAntiDiveDisplayActive` cache field (DisplayManager), the write-only `lastRotationDelta` member (EncoderManager), and the write-only `totalStepX`/`totalStepY` counters (SpeedMonitor). The 7 old custom-character slots that were only consumed by the deleted status-icon code were also removed.
+
+### Notes
+- **No motor, PID, anti-dive, or safety-path change.** The Z readout is display-only and reads from the position the AccelStepper already tracks. Z polarity follows the existing `Z_DIR_INVERT` semantics — **bench-verify the sign of the Z readout before cutting**: a positive delta should mean the torch has risen above the cut-start height, a negative delta that it has dropped.
+- Serial telemetry is unaffected. The absolute stepper position is still reported as `pos=` in `STATUS` / `DEBUG` logs; the LCD `Z` field is a separate, relative, display-only value.
+- Inspired by field feedback from Russ S.
+
 ## [2.5.3] - 2026-07-27
 
 ### Fixed
