@@ -9,13 +9,17 @@
 #include "SpeedMonitor.h"
 
 // Custom characters
-static byte enableChar[8] = {0b00000, 0b00000, 0b00000, 0b11111, 0b11111, 0b11111, 0b11111, 0b00000};
-static byte plasmaChar[8] = {0b11111, 0b11111, 0b11111, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000};
-static byte thcActifChar[8] = {0b11111, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11111, 0b00000};
-static byte arrowUp[8] = {0b00100, 0b01110, 0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00000};
-static byte arrowDown[8] = {0b00100, 0b00100, 0b00100, 0b00100, 0b11111, 0b01110, 0b00100, 0b00000};
-static byte stableChar[8] = {0b00000, 0b00000, 0b11111, 0b00000, 0b00000, 0b11111, 0b00000, 0b00000};
-static byte enableall[8] = {0b11111, 0b11111, 0b11111, 0b11111, 0b11111, 0b11111, 0b11111, 0b00000};
+// → used after "Act"/"Tgt" to show THC engagement / active correction.
+static byte arrowRight[8] = {
+    0b00000,
+    0b00100,
+    0b00110,
+    0b11111,
+    0b11111,
+    0b00110,
+    0b00100,
+    0b00000
+};
 
 DisplayManager::DisplayManager()
     : lcd(LCD_I2C_ADDRESS, LCD_COLUMNS, LCD_ROWS)
@@ -27,11 +31,9 @@ DisplayManager::DisplayManager()
     , lastActualVoltage(-1.0f)
     , lastSetpoint(-1.0f)
     , lastSpeed(-1)
-    , lastThcActive(false)
-    , lastOutput(0.0)
-    , lastEnableLow(false)
-    , lastPlasmaLow(false)
-    , lastThcOff(false)
+    , lastTgtArrow(false)
+    , lastActArrow(false)
+    , lastZDelta(-999.0f)
     , lastTempCorrectionFactor(-1.0f)
     , lastUncorrectedFast(-1.0f)
     , lastAdjustedVoltage(-1.0f)
@@ -47,13 +49,7 @@ void DisplayManager::begin() {
 }
 
 void DisplayManager::createCustomCharacters() {
-    lcd.createChar(CHAR_ENABLE, enableChar);
-    lcd.createChar(CHAR_PLASMA, plasmaChar);
-    lcd.createChar(CHAR_THC_ACTIVE, thcActifChar);
-    lcd.createChar(CHAR_ARROW_UP, arrowUp);
-    lcd.createChar(CHAR_ARROW_DOWN, arrowDown);
-    lcd.createChar(CHAR_STABLE, stableChar);
-    lcd.createChar(CHAR_ENABLE_ALL, enableall);
+    lcd.createChar(CHAR_ARROW_RIGHT, arrowRight);
 }
 
 void DisplayManager::update(unsigned long currentTime, int currentScreen,
@@ -162,16 +158,34 @@ void DisplayManager::drawAntiDiveMessage() {
 }
 
 void DisplayManager::drawScreen0(THCController* thc, SpeedMonitor* speedMonitor) {
-    // Line 0: "Act: XXX.X V SPD"
+    // THC status drives the two label arrows:
+    //   Tgt→ = THC engaged (owns Z, all gates cleared)
+    //   Act→ = THC actively correcting (PID output driving the stepper)
+    // When idle both stay ':'. This encodes three distinct states in the
+    // labels themselves, freeing the old icon column for the Z-delta readout.
+    bool thcActive = thc->isTHCActive();
+    bool correcting = thcActive && (fabs(thc->getPidOutput()) > 10.0);
+
+    // --- Line 0: "Act[→|:] XXX.X V SPD" ---
+    // Redraw the "Act" label separator when its state changes. We use the
+    // custom CHAR_ARROW_RIGHT glyph rather than the HD44780 ROM arrow because
+    // the ROM glyph at 0x7E differs between A00 and A02 character ROMs (left
+    // arrow on A00), and I2C backpacks commonly ship with A00. The custom
+    // glyph is ROM-independent.
+    if (correcting != lastActArrow) {
+        lcd.setCursor(0, 0);
+        lcd.print("Act");
+        lcd.write(correcting ? CHAR_ARROW_RIGHT : (byte)':');
+        lastActArrow = correcting;
+    }
+
     float actualVoltage = thc->getFastVoltage();
     if (actualVoltage != lastActualVoltage) {
-        lcd.setCursor(0, 0);
-        lcd.print("Act:");
         lcd.setCursor(4, 0);
         char vBuf[8];
         dtostrf(actualVoltage, 5, 1, vBuf);  // Fixed width 5 chars: "  9.4" or "123.4"
         lcd.print(vBuf);
-        lcd.print("V ");  // V + space to clear any leftover
+        lcd.print("V ");
         lastActualVoltage = actualVoltage;
     }
 
@@ -193,11 +207,16 @@ void DisplayManager::drawScreen0(THCController* thc, SpeedMonitor* speedMonitor)
         }
     }
 
-    // Line 1: "Tgt: XXX.X V [status]"
+    // --- Line 1: "Tgt[→|:] XXX.X V Z[+1.2|----]" ---
+    if (thcActive != lastTgtArrow) {
+        lcd.setCursor(0, 1);
+        lcd.print("Tgt");
+        lcd.write(thcActive ? CHAR_ARROW_RIGHT : (byte)':');
+        lastTgtArrow = thcActive;
+    }
+
     float setpoint = thc->getSetpoint();
     if (setpoint != lastSetpoint) {
-        lcd.setCursor(0, 1);
-        lcd.print("Tgt:");
         lcd.setCursor(4, 1);
         char sBuf[8];
         dtostrf(setpoint, 5, 1, sBuf);  // Fixed width 5 chars
@@ -206,62 +225,28 @@ void DisplayManager::drawScreen0(THCController* thc, SpeedMonitor* speedMonitor)
         lastSetpoint = setpoint;
     }
 
-    // Status icons
-    drawStatusIcons(thc);
-}
+    // Z delta from cut-start height. 6 chars: " Z+1.2" / " Z-0.3" / " Z----"
+    // when THC is idle (no reference yet). Clamped to +/-9.9 so the field
+    // never overflows the 16-column line.
+    float zDelta = thcActive ? thc->getZDeltaMm() : 0.0f;
+    bool drawZ = thcActive;
+    bool zChanged = (zDelta != lastZDelta);
+    bool zStateChanged = (drawZ != (lastZDelta > -900.0f));
 
-void DisplayManager::drawStatusIcons(THCController* thc) {
-    bool enableLow = thc->isEnableLow();
-    bool plasmaLow = thc->isPlasmaActive();
-    bool thcActive = thc->isTHCActive();
-    bool thcOff = thc->isTHCOff();
-    double output = thc->getPidOutput();
-
-    if (enableLow != lastEnableLow || plasmaLow != lastPlasmaLow ||
-        thcActive != lastThcActive || thcOff != lastThcOff ||
-        output != lastOutput) {
-
-        lcd.setCursor(11, 1);
-        // Enable
-        lcd.write(enableLow ? CHAR_ENABLE : (byte)'O');
-
-        lcd.setCursor(12, 1);
-        // THC direction
-        if (thcActive) {
-            if (output > 10) {
-                lcd.write(CHAR_ARROW_UP);
-            } else if (output < -10) {
-                lcd.write(CHAR_ARROW_DOWN);
-            } else {
-                lcd.write(CHAR_STABLE);
-            }
+    if (zStateChanged || (drawZ && zChanged)) {
+        lcd.setCursor(10, 1);
+        if (drawZ) {
+            if (zDelta > 9.9f) zDelta = 9.9f;
+            if (zDelta < -9.9f) zDelta = -9.9f;
+            char zBuf[8];
+            // " Z" + sign + digit.digit  =>  e.g. " Z+1.2"  (6 chars total)
+            snprintf(zBuf, sizeof(zBuf), " Z%+.1f", (double)zDelta);
+            lcd.print(zBuf);
+            lastZDelta = zDelta;
         } else {
-            lcd.print(" ");
+            lcd.print(" Z----");
+            lastZDelta = -999.0f;  // sentinel = "idle, no reference"
         }
-
-        lcd.setCursor(13, 1);
-        // THC off/active
-        if (thcOff && !thcActive) {
-            lcd.print("o");
-        } else if (thcOff && thcActive) {
-            lcd.write(CHAR_THC_ACTIVE);
-        } else {
-            lcd.print("-");
-        }
-
-        lcd.setCursor(14, 1);
-        // Plasma
-        if (plasmaLow) {
-            lcd.write(CHAR_PLASMA);
-        } else {
-            lcd.print(" ");
-        }
-
-        lastEnableLow = enableLow;
-        lastPlasmaLow = plasmaLow;
-        lastThcActive = thcActive;
-        lastThcOff = thcOff;
-        lastOutput = output;
     }
 }
 
@@ -346,11 +331,9 @@ void DisplayManager::resetCachedValues() {
     lastActualVoltage = -1.0f;
     lastSetpoint = -1.0f;
     lastSpeed = -1;
-    lastThcActive = false;
-    lastOutput = 0.0;
-    lastEnableLow = false;
-    lastPlasmaLow = false;
-    lastThcOff = false;
+    lastTgtArrow = false;
+    lastActArrow = false;
+    lastZDelta = -999.0f;
     lastTempCorrectionFactor = -1.0f;
     lastUncorrectedFast = -1.0f;
     lastAdjustedVoltage = -1.0f;

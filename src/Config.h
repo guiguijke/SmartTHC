@@ -296,13 +296,7 @@ const int N_SLOW = 200;                             // Slow average
 #define LCD_ROWS 2
 
 // Custom characters
-#define CHAR_ENABLE       0
-#define CHAR_PLASMA       1
-#define CHAR_THC_ACTIVE   2
-#define CHAR_ARROW_UP     3
-#define CHAR_ARROW_DOWN   4
-#define CHAR_STABLE       5
-#define CHAR_ENABLE_ALL   6
+#define CHAR_ARROW_RIGHT  0   // → drawn after "Act"/"Tgt" when THC is active
 
 // ============================================================================
 // NUMBER OF SCREENS

@@ -51,6 +51,7 @@ THCController::THCController()
     , thcActive(false)
     , lastThcActive(false)
     , thcActiveStartTime(0)
+    , zReferencePosition(0)
     , speedMonitor(nullptr)
     , prevThcOff(false)
     , thcOnStabilized(true)
@@ -448,6 +449,10 @@ void THCController::updateTHCState(unsigned long currentTime) {
             pid.start();
             pid.reset();
             thcActiveStartTime = currentTime;
+            // Snapshot Z position at the moment the THC takes ownership of the
+            // axis. The LCD Z field reports the delta from this reference, so
+            // each cut (each M8 -> thcActive transition) starts at Z=0.0.
+            zReferencePosition = stepper.currentPosition();
         } else {
             pid.stop();
         }

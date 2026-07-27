@@ -52,11 +52,9 @@ private:
     float lastActualVoltage;
     float lastSetpoint;
     int lastSpeed;
-    bool lastThcActive;
-    double lastOutput;
-    bool lastEnableLow;
-    bool lastPlasmaLow;
-    bool lastThcOff;
+    bool lastTgtArrow;          // true when → was last drawn after "Tgt" (THC engaged)
+    bool lastActArrow;          // true when → was last drawn after "Act" (THC correcting)
+    float lastZDelta;           // last drawn Z delta (mm); sentinel -999.0 = force redraw
     float lastTempCorrectionFactor;
     float lastUncorrectedFast;
     float lastAdjustedVoltage;
@@ -72,7 +70,6 @@ private:
     void drawScreen7(THCController* thc);
 
     // Utility methods
-    void drawStatusIcons(THCController* thc);
     void resetCachedValues();
 
     // Anti-Dive message handling
