@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.5.3] - 2026-07-27
+
+### Fixed
+- **Stale `DEFAULT_VOLTAGEDIVIDER` value in `Config.h`, `AGENTS.md`, and `README.md`.** `platformio.ini` is the project's source of truth and overrides `Config.h` through the `#ifndef` pattern, so the build flag (`50.0`) has always won at compile time and the fallback value (`83.27`) in `Config.h` was dead code — but the three files disagreed, and the documentation (83.27) did not match what actually compiled (50.0). The fallback and both docs are now aligned to `50.0`. **No behavioral change** for anyone building from `platformio.ini`: the compiled value is unchanged. Anyone building `Config.h` outside PlatformIO (or reading the docs) now sees the correct value.
+
+### Notes
+- The `README.md` description of the flag was also clarified: `DEFAULT_VOLTAGEDIVIDER` is a hardware-calibration value (`V_plasma / V_at_ADC`) determined by the physical voltage-divider resistors feeding `A0`, not a universal default. Each builder must measure it for their own analog front-end.
+- Thanks to Russ S. for spotting the inconsistency.
+
 ## [2.5.2] - 2026-07-26
 
 ### Fixed
