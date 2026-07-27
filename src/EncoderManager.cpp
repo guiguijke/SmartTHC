@@ -18,7 +18,6 @@ EncoderManager::EncoderManager()
     , clickPending(false)
     , rotationActive(false)
     , lastRotationTime(0)
-    , lastRotationDelta(0)
     , debounceTime(30)      // 30ms to confirm press/release
     , lockoutTime(250)      // 250ms lockout after click
     , rotationTimeout(150)  // 150ms without rotation = end of rotation
@@ -48,7 +47,6 @@ void EncoderManager::update() {
     if (currentDelta != 0) {
         rotationActive = true;
         lastRotationTime = currentTime;
-        lastRotationDelta = currentDelta;
     } else if (rotationActive && (currentTime - lastRotationTime > rotationTimeout)) {
         // End of rotation after timeout
         rotationActive = false;

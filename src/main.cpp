@@ -47,8 +47,6 @@ unsigned int loopCount = 0;
 // PROTOTYPES
 // ============================================================================
 
-void handleScreenTransitions();
-void handleEncoderInput();
 void handleParameterAdjustment(int delta);
 void notifyAntiDiveIfNeeded();
 

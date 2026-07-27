@@ -35,7 +35,6 @@ DisplayManager::DisplayManager()
     , lastTempCorrectionFactor(-1.0f)
     , lastUncorrectedFast(-1.0f)
     , lastAdjustedVoltage(-1.0f)
-    , lastAntiDiveDisplayActive(false)
 {
 }
 

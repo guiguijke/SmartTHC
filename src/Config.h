@@ -89,7 +89,6 @@
     const float CUT_SPEED_ADJUST_STEP = 5.0f;
     const float DIST_PER_STEP_X = (1.0f / STEPS_PER_MM_X) / MM_PER_INCH;
     const float DIST_PER_STEP_Y = (1.0f / STEPS_PER_MM_Y) / MM_PER_INCH;
-    const char* const SPEED_UNIT = "IPM";
     const char* const SPEED_UNIT_LONG = "Inches/min";
 #else
     const float DEFAULT_CUT_SPEED = 1300.0f;
@@ -99,12 +98,10 @@
     const float CUT_SPEED_ADJUST_STEP = 100.0f;
     const float DIST_PER_STEP_X = 1.0f / STEPS_PER_MM_X;
     const float DIST_PER_STEP_Y = 1.0f / STEPS_PER_MM_Y;
-    const char* const SPEED_UNIT = "mm/min";
     const char* const SPEED_UNIT_LONG = "mm/min";
 #endif
 
 // Z axis always in mm
-const float DIST_PER_STEP_Z = 1.0f / STEPS_PER_MM_Z;
 const long ANTI_DIVE_LIFT_STEPS = (long)(ANTI_DIVE_LIFT_MM * STEPS_PER_MM_Z);
 
 // ============================================================================

@@ -60,7 +60,6 @@ private:
     float lastTempCorrectionFactor;
     float lastUncorrectedFast;
     float lastAdjustedVoltage;
-    bool lastAntiDiveDisplayActive;
 
     // Screen drawing methods
     void drawScreen0(THCController* thc, SpeedMonitor* speedMonitor);

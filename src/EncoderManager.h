@@ -52,7 +52,6 @@ private:
     // Rotation detection
     bool rotationActive;
     unsigned long lastRotationTime;
-    int lastRotationDelta;
 
     // Debounce parameters
     unsigned long debounceTime;     // Press/release confirmation time

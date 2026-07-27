@@ -92,7 +92,6 @@ private:
 
     // Parameters
     float voltageCorrectionFactor;
-    float tempVoltageCorrectionFactor;
 
     // Voltages
     float fastVoltage;

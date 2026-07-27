@@ -26,8 +26,6 @@ SpeedMonitor::SpeedMonitor()
     , sumSpeedReadings(0.0f)
     , lastSpeedTime(0)
     , lastStepTime(0)
-    , totalStepX(0)
-    , totalStepY(0)
 {
     // Initialize filter array
     for (int i = 0; i < SPEED_FILTER_SIZE; i++) {
@@ -74,9 +72,6 @@ void SpeedMonitor::calculateSpeed(unsigned long currentTime) {
     stepCountY = 0;
     interrupts();
 
-    totalStepX += tempX;
-    totalStepY += tempY;
-
     // Calculate speed
     float torchSpeed = 0.0f;
     unsigned long deltaTime = currentTime - lastSpeedTime;
@@ -99,8 +94,6 @@ void SpeedMonitor::calculateSpeed(unsigned long currentTime) {
 
     // Reset on timeout
     if ((tempX + tempY) == 0 && (currentTime - lastStepTime > STEP_TIMEOUT)) {
-        totalStepX = 0;
-        totalStepY = 0;
         for (int i = 0; i < SPEED_FILTER_SIZE; i++) {
             speedReadings[i] = 0.0f;
         }

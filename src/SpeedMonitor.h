@@ -66,8 +66,6 @@ private:
     // Timing
     unsigned long lastSpeedTime;
     unsigned long lastStepTime;
-    unsigned long totalStepX;
-    unsigned long totalStepY;
 
     void calculateSpeed(unsigned long currentTime);
 };
