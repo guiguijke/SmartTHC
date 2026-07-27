@@ -87,7 +87,7 @@ All firmware constants are centralized in `src/Config.h`. Hardware-dependent val
 | `STEPS_PER_MM_Z` | 50.0 | Z axis steps/mm (defaults to NEMA17 1.8° / 8 mm leadscrew / 1/8 µstep) |
 | `ANTI_DIVE_LIFT_MM` | 3.0 | Emergency Z retract height (mm) when anti-dive triggers |
 | `Z_DIR_INVERT` | 0 | Set to `1` if your Z stepper turns the wrong way on bench test — fixes PID and lift polarity together |
-| `DEFAULT_VOLTAGEDIVIDER` | 83.27 | Plasma voltage attenuation ratio (e.g. 50:1 divider feeding 0–5 V into A0) |
+| `DEFAULT_VOLTAGEDIVIDER` | 50.0 | Plasma voltage attenuation ratio: `V_plasma / V_at_ADC` (e.g. a 50:1 divider feeding 0–5 V into A0 → `50.0`). Calibrate to your own analog front-end — this is hardware-specific, not a universal default. |
 | `USE_IMPERIAL` | 0 | Switch to imperial units (IPM, inches) at compile time |
 
 Three additional motor-envelope flags (`STEPPER_MAX_SPEED`, `STEPPER_ACCELERATION`, `MAX_CUT_SPEED`) are available in `platformio.ini` but **commented out by default** and gated behind a hard warning. They are tightly coupled to the PID gains — changing them invalidates your tuning. See the "DANGER ZONE" block in `platformio.ini` for details.

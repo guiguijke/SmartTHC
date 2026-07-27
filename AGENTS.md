@@ -136,7 +136,7 @@ These are exposed as `-D` build flags so they can be changed without editing sou
 | `STEPS_PER_MM_Z` | `50.0` | Z-axis steps per mm (default targets NEMA17 1.8° / 1/8 µstep / 8 mm leadscrew) |
 | `ANTI_DIVE_LIFT_MM` | `3.0` | Emergency Z retract height when anti-dive triggers |
 | `Z_DIR_INVERT` | `0` | Set to `1` to invert the DIR pin if the Z stepper moves the wrong way on bench test |
-| `DEFAULT_VOLTAGEDIVIDER` | `83.27` | Plasma voltage attenuation ratio applied to the ADC reading |
+| `DEFAULT_VOLTAGEDIVIDER` | `50.0` | Plasma voltage attenuation ratio applied to the ADC reading |
 | `USE_IMPERIAL` | `0` | `1` = imperial units (IPM/inches) |
 
 There are also three commented-out, **safety-critical** overrides in `platformio.ini`:

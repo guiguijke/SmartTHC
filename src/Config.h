@@ -72,7 +72,7 @@
 #endif
 
 #ifndef DEFAULT_VOLTAGEDIVIDER
-#define DEFAULT_VOLTAGEDIVIDER  83.27
+#define DEFAULT_VOLTAGEDIVIDER  50.0
 #endif
 
 #define MM_PER_INCH     25.4
