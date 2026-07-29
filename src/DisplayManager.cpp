@@ -37,6 +37,7 @@ DisplayManager::DisplayManager()
     , lastTempCorrectionFactor(-1.0f)
     , lastUncorrectedFast(-1.0f)
     , lastAdjustedVoltage(-1.0f)
+    , forceRedraw(true)  // draw the static frame on the very first update
 {
 }
 
@@ -63,6 +64,7 @@ void DisplayManager::update(unsigned long currentTime, int currentScreen,
         lcd.clear();
         lastScreen = currentScreen;
         resetCachedValues();
+        forceRedraw = true;  // ensure static labels get drawn even when their cached state already matches the idle defaults
     }
 
     // Draw appropriate screen
@@ -92,6 +94,8 @@ void DisplayManager::update(unsigned long currentTime, int currentScreen,
             drawScreen7(thc);
             break;
     }
+
+    forceRedraw = false;  // static frame is now on screen; revert to change-gated refresh
 }
 
 void DisplayManager::notifyAntiDiveActivated() {
@@ -172,7 +176,7 @@ void DisplayManager::drawScreen0(THCController* thc, SpeedMonitor* speedMonitor)
     // the ROM glyph at 0x7E differs between A00 and A02 character ROMs (left
     // arrow on A00), and I2C backpacks commonly ship with A00. The custom
     // glyph is ROM-independent.
-    if (correcting != lastActArrow) {
+    if (forceRedraw || correcting != lastActArrow) {
         lcd.setCursor(0, 0);
         lcd.print("Act");
         lcd.write(correcting ? CHAR_ARROW_RIGHT : (byte)':');
@@ -180,7 +184,7 @@ void DisplayManager::drawScreen0(THCController* thc, SpeedMonitor* speedMonitor)
     }
 
     float actualVoltage = thc->getFastVoltage();
-    if (actualVoltage != lastActualVoltage) {
+    if (forceRedraw || actualVoltage != lastActualVoltage) {
         lcd.setCursor(4, 0);
         char vBuf[8];
         dtostrf(actualVoltage, 5, 1, vBuf);  // Fixed width 5 chars: "  9.4" or "123.4"
@@ -198,7 +202,7 @@ void DisplayManager::drawScreen0(THCController* thc, SpeedMonitor* speedMonitor)
         if (displayedSpeed < 0) displayedSpeed = 0;
         if (displayedSpeed > 9999) displayedSpeed = 9999;
 
-        if (displayedSpeed != lastSpeed) {
+        if (forceRedraw || displayedSpeed != lastSpeed) {
             lcd.setCursor(12, 0);
             char buffer[8];
             snprintf(buffer, sizeof(buffer), "%4d", displayedSpeed);
@@ -208,7 +212,7 @@ void DisplayManager::drawScreen0(THCController* thc, SpeedMonitor* speedMonitor)
     }
 
     // --- Line 1: "Tgt[→|:] XXX.X V Z[+1.2|----]" ---
-    if (thcActive != lastTgtArrow) {
+    if (forceRedraw || thcActive != lastTgtArrow) {
         lcd.setCursor(0, 1);
         lcd.print("Tgt");
         lcd.write(thcActive ? CHAR_ARROW_RIGHT : (byte)':');
@@ -216,7 +220,7 @@ void DisplayManager::drawScreen0(THCController* thc, SpeedMonitor* speedMonitor)
     }
 
     float setpoint = thc->getSetpoint();
-    if (setpoint != lastSetpoint) {
+    if (forceRedraw || setpoint != lastSetpoint) {
         lcd.setCursor(4, 1);
         char sBuf[8];
         dtostrf(setpoint, 5, 1, sBuf);  // Fixed width 5 chars
@@ -233,7 +237,7 @@ void DisplayManager::drawScreen0(THCController* thc, SpeedMonitor* speedMonitor)
     bool zChanged = (zDelta != lastZDelta);
     bool zStateChanged = (drawZ != (lastZDelta > -900.0f));
 
-    if (zStateChanged || (drawZ && zChanged)) {
+    if (forceRedraw || zStateChanged || (drawZ && zChanged)) {
         lcd.setCursor(10, 1);
         if (drawZ) {
             if (zDelta > 9.9f) zDelta = 9.9f;
