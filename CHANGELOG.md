@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.6.1] - 2026-07-29
+
+### Fixed
+- **Screen 0 labels missing after the v2.6.0 changes.** The Z-height display refactor in v2.6.0 decoupled the static labels (`Act`, `Tgt`, and the `Z----` idle field) from the voltage drawing and gated each redraw behind a state-change check (e.g. `correcting != lastActArrow`). `resetCachedValues()`, called on every screen entry, initializes those cached flags to their idle defaults (`false`). When the THC is idle — the normal bench state — the live state matches the cached default, so the condition is `false != false` → `false`, and the labels were **never drawn**. Only the voltage and setpoint values (drawn unconditionally at column 4) appeared on screen. This is the bug that forced debugging the display right after the v2.6.0 release.
+
+  Fix: added a one-shot `forceRedraw` flag, armed on screen change and at startup, that forces the full static frame to be drawn on the first update call. It is then cleared centrally in `update()` after the draw, so steady-state refresh remains flicker-free (still gated on state/value changes). Display-only; no motor, PID, anti-dive, or safety-path change.
+
 ## [2.6.0] - 2026-07-28
 
 ### Added
