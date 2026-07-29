@@ -76,7 +76,7 @@ public:
 
     // Z delta in mm relative to the cut-start height (snapshot taken when THC
     // becomes active). Returns 0.0 between cuts / when THC is idle. Display-only.
-    float getZDeltaMm() const { return (float)(stepper.currentPosition() - zReferencePosition) / (float)STEPS_PER_MM_Z; }
+    float getZDeltaMm() { return (float)(stepper.currentPosition() - zReferencePosition) / (float)STEPS_PER_MM_Z; }
 
     // Reset
     void reset();

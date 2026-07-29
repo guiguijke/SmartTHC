@@ -19,6 +19,9 @@ All notable changes to this project are documented in this file.
   - `Tgt→` with `Act→` — THC engaged **and** actively correcting
   This is finer-grained than the previous single direction icon and frees the column for the Z readout. The arrow is a custom CGRAM glyph (`CHAR_ARROW_RIGHT`); the HD44780 ROM arrow at `0x7E` was deliberately avoided because it renders as a left arrow on the A00 character ROM that most I2C backpacks ship with.
 
+### Fixed
+- **Build failure introduced by the new Z readout.** `THCController::getZDeltaMm()` was declared `const` but calls `AccelStepper::currentPosition()`, which is not a `const` method, so every translation unit including `THCController.h` failed with `error: passing 'const AccelStepper' as 'this' argument discards qualifiers`. The getter is now non-`const`, consistent with `getMotorPosition()` right above it. No behavioral change.
+
 ### Internal
 - **Dead-code cleanup.** A second full audit (the first was at v2.3.0) removed 10 confirmed-dead items with no behavioral change: `SPEED_UNIT` and `DIST_PER_STEP_Z` (Config.h), two orphan function prototypes (main.cpp), the unused `tempVoltageCorrectionFactor` member (THCController), the unused `lastAntiDiveDisplayActive` cache field (DisplayManager), the write-only `lastRotationDelta` member (EncoderManager), and the write-only `totalStepX`/`totalStepY` counters (SpeedMonitor). The 7 old custom-character slots that were only consumed by the deleted status-icon code were also removed.
 
