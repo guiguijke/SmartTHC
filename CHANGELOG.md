@@ -4,31 +4,7 @@ All notable changes to this project are documented in this file.
 
 ## [2.6.2] - 2026-07-31
 
-### Fixed
-- **Z readout only showed while the Z axis was moving, and reset to 0.0 at every corner.** Two compounding bugs from the v2.6.0 Z-height feature:
-  1. The field was gated on `thcActive`, which flickers off at every corner because the cut-motion gate (`cutMotionGateReady`) drops when X/Y motion pauses — so the readout flipped to `Z----` at every segment boundary.
-  2. The Z reference was re-snapshotted on *every* `thcActive` rising edge, so even fixing the display gate would have re-zeroed the readout each time motion resumed.
-  
-  The reference is now snapshotted **once per cut**, at the `plasmaStabilized` rising edge (arc on and stable = cut start), and frozen for the whole cut. The readout is gated on `plasmaStabilized` too, so it now stays live and accurate from cut start to arc drop — through corners, anti-dive lifts, and THC_OFF toggles — and resets cleanly between cuts.
-
-### Changed
-- **New arrow semantics on the main screen.** The two label arrows now encode two distinct signals:
-  - `Tgt→` = **manual on/off switch engaged** (`ENABLE` pin LOW). Reflects the operator's intent — THC armed at the front panel.
-  - `Act→` = **THC regulation active** (`thcActive`): all gates have cleared and the THC owns the Z axis. Shown whenever the loop is in charge, even when the PID is holding steady inside its deadzone — the point is to see that regulation is engaged, not that the motor is moving.
-  
-  Because `thcActive` requires `enablePinLow` in its gating chain, `Act→` always implies `Tgt→`: you can be armed (`Tgt→`) without regulating (`Act:`), but never regulating without being armed.
-
-### Notes
-- **No motor, PID, anti-dive, or safety-path change.** The Z reference snapshot was merely moved from the `thcActive` edge to the `plasmaStabilized` edge; the snapshot value itself (`stepper.currentPosition()`) is unchanged. Z polarity follows the existing `Z_DIR_INVERT` semantics — bench-verify before cutting.
-
-## [2.6.1] - 2026-07-29
-
-### Fixed
-- **Screen 0 labels missing after the v2.6.0 changes.** The Z-height display refactor in v2.6.0 decoupled the static labels (`Act`, `Tgt`, and the `Z----` idle field) from the voltage drawing and gated each redraw behind a state-change check (e.g. `correcting != lastActArrow`). `resetCachedValues()`, called on every screen entry, initializes those cached flags to their idle defaults (`false`). When the THC is idle — the normal bench state — the live state matches the cached default, so the condition is `false != false` → `false`, and the labels were **never drawn**. Only the voltage and setpoint values (drawn unconditionally at column 4) appeared on screen. This is the bug that forced debugging the display right after the v2.6.0 release.
-
-  Fix: added a one-shot `forceRedraw` flag, armed on screen change and at startup, that forces the full static frame to be drawn on the first update call. It is then cleared centrally in `update()` after the draw, so steady-state refresh remains flicker-free (still gated on state/value changes). Display-only; no motor, PID, anti-dive, or safety-path change.
-
-## [2.6.0] - 2026-07-28
+This release adds the **live Z-height readout** on the main LCD screen that Russ asked for, and ships the three bugs that feature introduced along the way fully fixed. It supersedes the intermediate v2.6.0 / v2.6.1 tags, which never left the bench.
 
 ### Added
 - **Live Z-height readout on the main LCD screen.** The 4 status icons (enable / direction-arrow / THC / plasma) on screen 0 have been replaced by a live Z-axis delta value, so the torch height is visible during a cut without scrolling through a menu. New layout:
@@ -36,23 +12,30 @@ All notable changes to this project are documented in this file.
   Act→ 121.2V   590
   Tgt→ 122.0V Z+1.2
   ```
-  The `Z+1.2` field shows the Z-axis position in millimetres **relative to the cut-start height**: it is zeroed at the exact moment the THC takes ownership of the Z axis (the `thcActive` false→true edge, i.e. when all gates clear and the THC begins controlling height), so each cut starts at `Z 0.0` and the readout tracks drift during that cut. It reflects both normal PID corrections and anti-dive lifts. When the THC is idle the field shows `Z----` (no reference available). Absolute height would require a Z home switch, which the current hardware does not have — this relative readout is what the stepper position can actually tell us.
+  The `Z+1.2` field shows the Z-axis position in millimetres **relative to the cut-start height**: it is zeroed at the moment the arc stabilizes (cut start), so each cut starts at `Z 0.0` and the readout tracks drift during that cut — both normal PID corrections and anti-dive lifts. When the THC is idle the field shows `Z----` (no reference available). Absolute height would require a Z home switch, which the current hardware does not have — this relative readout is what the stepper position can actually tell us.
 
 ### Changed
-- **THC state is now encoded in the label arrows** (`Act:` / `Tgt:`) instead of the old icon column:
-  - `Act:` and `Tgt:` — THC idle
-  - `Tgt→` with `Act:` — THC engaged (owns Z) but holding steady (PID output inside the deadzone)
-  - `Tgt→` with `Act→` — THC engaged **and** actively correcting
-  This is finer-grained than the previous single direction icon and frees the column for the Z readout. The arrow is a custom CGRAM glyph (`CHAR_ARROW_RIGHT`); the HD44780 ROM arrow at `0x7E` was deliberately avoided because it renders as a left arrow on the A00 character ROM that most I2C backpacks ship with.
+- **New arrow semantics on the main screen.** The two label arrows encode two distinct signals:
+  - `Tgt→` = **manual on/off switch engaged** (`ENABLE` pin LOW). Reflects the operator's intent — THC armed at the front panel.
+  - `Act→` = **THC regulation active** (`thcActive`): all gates have cleared and the THC owns the Z axis. Shown whenever the loop is in charge, even when the PID is holding steady inside its deadzone — the point is to see that regulation is engaged, not that the motor is moving.
+  - `Act:` / `Tgt:` (no arrow) = idle.
 
-### Fixed
-- **Build failure introduced by the new Z readout.** `THCController::getZDeltaMm()` was declared `const` but calls `AccelStepper::currentPosition()`, which is not a `const` method, so every translation unit including `THCController.h` failed with `error: passing 'const AccelStepper' as 'this' argument discards qualifiers`. The getter is now non-`const`, consistent with `getMotorPosition()` right above it. No behavioral change.
+  Because `thcActive` requires `enablePinLow` in its gating chain, `Act→` always implies `Tgt→`: you can be armed (`Tgt→`) without regulating (`Act:`), but never regulating without being armed. The arrow is a custom CGRAM glyph (`CHAR_ARROW_RIGHT`); the HD44780 ROM arrow at `0x7E` was deliberately avoided because it renders as a left arrow on the A00 character ROM that most I2C backpacks ship with.
+
+### Fixed — three bugs from the Z-height feature
+- **The Z readout only showed while the Z axis was moving, and reset to `0.0` at every corner.** Two compounding causes:
+  1. The field was gated on `thcActive`, which flickers off at every corner because the cut-motion gate (`cutMotionGateReady`) drops when X/Y motion pauses — so the readout flipped to `Z----` at every segment boundary.
+  2. The Z reference was re-snapshotted on *every* `thcActive` rising edge, so even with the display gate fixed the readout would have re-zeroed each time motion resumed.
+
+  The reference is now snapshotted **once per cut**, at the `plasmaStabilized` rising edge (arc on and stable = cut start), and frozen for the whole cut. The readout is gated on `plasmaStabilized` too, so it now stays live and accurate from cut start to arc drop — through corners, anti-dive lifts, and THC_OFF toggles — and resets cleanly between cuts.
+- **The `Act` / `Tgt` labels and `Z----` field were not drawn at all on screen entry.** The redraw was gated on a state-change check, and the cached state matched the idle defaults right after a screen change, so the condition never fired — only the voltage and setpoint values appeared. Fixed with a one-shot `forceRedraw` flag armed on screen change and at startup.
+- **Build failure from the original Z readout patch.** `THCController::getZDeltaMm()` was declared `const` but calls `AccelStepper::currentPosition()`, which is not a `const` method. The getter is now non-`const`, consistent with `getMotorPosition()`.
 
 ### Internal
-- **Dead-code cleanup.** A second full audit (the first was at v2.3.0) removed 10 confirmed-dead items with no behavioral change: `SPEED_UNIT` and `DIST_PER_STEP_Z` (Config.h), two orphan function prototypes (main.cpp), the unused `tempVoltageCorrectionFactor` member (THCController), the unused `lastAntiDiveDisplayActive` cache field (DisplayManager), the write-only `lastRotationDelta` member (EncoderManager), and the write-only `totalStepX`/`totalStepY` counters (SpeedMonitor). The 7 old custom-character slots that were only consumed by the deleted status-icon code were also removed.
+- **Dead-code cleanup.** A second full audit (the first was at v2.3.0) removed 10 confirmed-dead items with no behavioral change: `SPEED_UNIT` and `DIST_PER_STEP_Z` (Config.h), two orphan function prototypes (main.cpp), the unused `tempVoltageCorrectionFactor` member (THCController), the unused `lastAntiDiveDisplayActive` cache field (DisplayManager), the write-only `lastRotationDelta` member (EncoderManager), and the write-only `totalStepX`/`totalStepY` counters (SpeedMonitor). The 7 old custom-character slots consumed only by the deleted status-icon code were also removed.
 
 ### Notes
-- **No motor, PID, anti-dive, or safety-path change.** The Z readout is display-only and reads from the position the AccelStepper already tracks. Z polarity follows the existing `Z_DIR_INVERT` semantics — **bench-verify the sign of the Z readout before cutting**: a positive delta should mean the torch has risen above the cut-start height, a negative delta that it has dropped.
+- **No motor, PID, anti-dive, or safety-path change.** The Z readout is display-only and reads from the position the AccelStepper already tracks; the reference snapshot was merely moved from the `thcActive` edge to the `plasmaStabilized` edge. Z polarity follows the existing `Z_DIR_INVERT` semantics — **bench-verify the sign of the Z readout before cutting**: a positive delta should mean the torch has risen above the cut-start height, a negative delta that it has dropped.
 - Serial telemetry is unaffected. The absolute stepper position is still reported as `pos=` in `STATUS` / `DEBUG` logs; the LCD `Z` field is a separate, relative, display-only value.
 - Inspired by field feedback from Russ S.
 
