@@ -162,25 +162,26 @@ void DisplayManager::drawAntiDiveMessage() {
 }
 
 void DisplayManager::drawScreen0(THCController* thc, SpeedMonitor* speedMonitor) {
-    // THC status drives the two label arrows:
-    //   Tgt→ = THC engaged (owns Z, all gates cleared)
-    //   Act→ = THC actively correcting (PID output driving the stepper)
-    // When idle both stay ':'. This encodes three distinct states in the
-    // labels themselves, freeing the old icon column for the Z-delta readout.
-    bool thcActive = thc->isTHCActive();
-    bool correcting = thcActive && (fabs(thc->getPidOutput()) > 10.0);
+    // The two label arrows encode two independent signals:
+    //   Tgt→ = manual on/off switch engaged (ENABLE pin LOW). This reflects
+    //          the operator's intent: THC armed at the front panel.
+    //   Act→ = THC regulation active: all gates have cleared and the THC owns
+    //          the Z axis. Shown whenever regulation is engaged, even when the
+    //          PID is holding steady inside its deadzone — the point is to see
+    //          that the loop is in charge, not that the motor is moving.
+    // When idle the separator stays ':'. We use the custom CHAR_ARROW_RIGHT
+    // glyph rather than the HD44780 ROM arrow because the ROM glyph at 0x7E
+    // differs between A00 and A02 character ROMs (left arrow on A00), and I2C
+    // backpacks commonly ship with A00. The custom glyph is ROM-independent.
+    bool thcEngaged = thc->isEnableLow();   // on/off switch      -> Tgt arrow
+    bool thcActive  = thc->isTHCActive();   // regulation active  -> Act arrow
 
     // --- Line 0: "Act[→|:] XXX.X V SPD" ---
-    // Redraw the "Act" label separator when its state changes. We use the
-    // custom CHAR_ARROW_RIGHT glyph rather than the HD44780 ROM arrow because
-    // the ROM glyph at 0x7E differs between A00 and A02 character ROMs (left
-    // arrow on A00), and I2C backpacks commonly ship with A00. The custom
-    // glyph is ROM-independent.
-    if (forceRedraw || correcting != lastActArrow) {
+    if (forceRedraw || thcActive != lastActArrow) {
         lcd.setCursor(0, 0);
         lcd.print("Act");
-        lcd.write(correcting ? CHAR_ARROW_RIGHT : (byte)':');
-        lastActArrow = correcting;
+        lcd.write(thcActive ? CHAR_ARROW_RIGHT : (byte)':');
+        lastActArrow = thcActive;
     }
 
     float actualVoltage = thc->getFastVoltage();
@@ -212,11 +213,11 @@ void DisplayManager::drawScreen0(THCController* thc, SpeedMonitor* speedMonitor)
     }
 
     // --- Line 1: "Tgt[→|:] XXX.X V Z[+1.2|----]" ---
-    if (forceRedraw || thcActive != lastTgtArrow) {
+    if (forceRedraw || thcEngaged != lastTgtArrow) {
         lcd.setCursor(0, 1);
         lcd.print("Tgt");
-        lcd.write(thcActive ? CHAR_ARROW_RIGHT : (byte)':');
-        lastTgtArrow = thcActive;
+        lcd.write(thcEngaged ? CHAR_ARROW_RIGHT : (byte)':');
+        lastTgtArrow = thcEngaged;
     }
 
     float setpoint = thc->getSetpoint();
@@ -229,11 +230,15 @@ void DisplayManager::drawScreen0(THCController* thc, SpeedMonitor* speedMonitor)
         lastSetpoint = setpoint;
     }
 
-    // Z delta from cut-start height. 6 chars: " Z+1.2" / " Z-0.3" / " Z----"
-    // when THC is idle (no reference yet). Clamped to +/-9.9 so the field
+    // Z delta from cut-start height, visible for the whole cut. Gated on
+    // plasmaStabilized (arc on AND stable) — NOT on thcActive — so the readout
+    // stays live through corners (cut-motion-gate flicker), anti-dive lifts,
+    // and THC_OFF toggles. The reference is frozen for the whole cut and
+    // resets between cuts (arc drops). Clamped to +/-9.9 so the 6-char field
     // never overflows the 16-column line.
-    float zDelta = thcActive ? thc->getZDeltaMm() : 0.0f;
-    bool drawZ = thcActive;
+    bool cutActive = thc->isPlasmaStabilized();
+    float zDelta = cutActive ? thc->getZDeltaMm() : 0.0f;
+    bool drawZ = cutActive;
     bool zChanged = (zDelta != lastZDelta);
     bool zStateChanged = (drawZ != (lastZDelta > -900.0f));
 

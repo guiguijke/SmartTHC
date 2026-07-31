@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.6.2] - 2026-07-31
+
+### Fixed
+- **Z readout only showed while the Z axis was moving, and reset to 0.0 at every corner.** Two compounding bugs from the v2.6.0 Z-height feature:
+  1. The field was gated on `thcActive`, which flickers off at every corner because the cut-motion gate (`cutMotionGateReady`) drops when X/Y motion pauses — so the readout flipped to `Z----` at every segment boundary.
+  2. The Z reference was re-snapshotted on *every* `thcActive` rising edge, so even fixing the display gate would have re-zeroed the readout each time motion resumed.
+  
+  The reference is now snapshotted **once per cut**, at the `plasmaStabilized` rising edge (arc on and stable = cut start), and frozen for the whole cut. The readout is gated on `plasmaStabilized` too, so it now stays live and accurate from cut start to arc drop — through corners, anti-dive lifts, and THC_OFF toggles — and resets cleanly between cuts.
+
+### Changed
+- **New arrow semantics on the main screen.** The two label arrows now encode two distinct signals:
+  - `Tgt→` = **manual on/off switch engaged** (`ENABLE` pin LOW). Reflects the operator's intent — THC armed at the front panel.
+  - `Act→` = **THC regulation active** (`thcActive`): all gates have cleared and the THC owns the Z axis. Shown whenever the loop is in charge, even when the PID is holding steady inside its deadzone — the point is to see that regulation is engaged, not that the motor is moving.
+  
+  Because `thcActive` requires `enablePinLow` in its gating chain, `Act→` always implies `Tgt→`: you can be armed (`Tgt→`) without regulating (`Act:`), but never regulating without being armed.
+
+### Notes
+- **No motor, PID, anti-dive, or safety-path change.** The Z reference snapshot was merely moved from the `thcActive` edge to the `plasmaStabilized` edge; the snapshot value itself (`stepper.currentPosition()`) is unchanged. Z polarity follows the existing `Z_DIR_INVERT` semantics — bench-verify before cutting.
+
 ## [2.6.1] - 2026-07-29
 
 ### Fixed

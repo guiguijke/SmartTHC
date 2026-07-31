@@ -52,8 +52,8 @@ private:
     float lastActualVoltage;
     float lastSetpoint;
     int lastSpeed;
-    bool lastTgtArrow;          // true when → was last drawn after "Tgt" (THC engaged)
-    bool lastActArrow;          // true when → was last drawn after "Act" (THC correcting)
+    bool lastTgtArrow;          // true when → was last drawn after "Tgt" (on/off switch engaged)
+    bool lastActArrow;          // true when → was last drawn after "Act" (THC regulation active)
     float lastZDelta;           // last drawn Z delta (mm); sentinel -999.0 = force redraw
     bool forceRedraw;           // one-shot: draw the static frame once after a screen change
     float lastTempCorrectionFactor;

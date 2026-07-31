@@ -74,8 +74,11 @@ public:
     long getMotorPosition() { return stepper.currentPosition(); }
     void setMotorPosition(long position) { stepper.setCurrentPosition(position); }
 
-    // Z delta in mm relative to the cut-start height (snapshot taken when THC
-    // becomes active). Returns 0.0 between cuts / when THC is idle. Display-only.
+    // Z delta in mm relative to the cut-start height. The reference is
+    // snapshotted once at the plasmaStabilized rising edge (arc stabilized =
+    // cut start) and frozen for the whole cut, so the readout survives
+    // cut-motion-gate flicker, anti-dive lifts, and THC_OFF toggles. It resets
+    // between cuts (arc drops). Display-only.
     float getZDeltaMm() { return (float)(stepper.currentPosition() - zReferencePosition) / (float)STEPS_PER_MM_Z; }
 
     // Reset

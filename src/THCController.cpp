@@ -391,6 +391,13 @@ void THCController::updatePlasmaState(unsigned long currentTime) {
             plasmaStabilized = true;
             if (!lastPlasmaStabilized) {
                 pid.reset();
+                // Snapshot the Z position at the moment the arc stabilizes —
+                // this is the cut-start height. The LCD Z field reports the
+                // delta from this reference. Anchoring on plasmaStabilized (not
+                // thcActive) keeps the reference frozen through cut-motion-gate
+                // flicker at corners, anti-dive lifts, and THC_OFF toggles, and
+                // it resets cleanly between cuts when the arc drops.
+                zReferencePosition = stepper.currentPosition();
                 // Re-seed the slow filter with the current stabilized voltage
                 // instead of the pierce voltage (~145 V). This prevents the
                 // anti-dive reference from taking ~2 s to converge and causing
@@ -449,10 +456,10 @@ void THCController::updateTHCState(unsigned long currentTime) {
             pid.start();
             pid.reset();
             thcActiveStartTime = currentTime;
-            // Snapshot Z position at the moment the THC takes ownership of the
-            // axis. The LCD Z field reports the delta from this reference, so
-            // each cut (each M8 -> thcActive transition) starts at Z=0.0.
-            zReferencePosition = stepper.currentPosition();
+            // Z reference is now snapshotted at the plasmaStabilized rising
+            // edge (cut start), not here — see updatePlasmaState(). Anchoring
+            // it on thcActive caused the readout to re-zero at every corner
+            // because thcActive flickers with the cut-motion gate.
         } else {
             pid.stop();
         }
