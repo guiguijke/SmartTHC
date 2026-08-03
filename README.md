@@ -1,6 +1,10 @@
 # Smart THC
 
-![Smart THC Logo](https://github.com/guiguijke/SmartTHC/blob/main/SmartTHC_LOGO_PNG.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./SmartTHC_LOGO_PNG.png">
+  <source media="(prefers-color-scheme: light)" srcset="./SmartTHC_LOGO_LIGHT_PNG.png">
+  <img alt="Smart THC Logo" src="./SmartTHC_LOGO_PNG.png" width="600">
+</picture>
 
 **Smart THC** is an open-source Arduino-based Torch Height Controller (THC) for CNC plasma cutting machines. It dynamically adjusts torch height based on plasma arc voltage using PID control, delivering clean and accurate cuts. Features a user-friendly LCD interface, real-time parameter tuning via rotary encoder, and robust protection mechanisms.
 
