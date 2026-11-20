@@ -1,5 +1,7 @@
 # Smart THC
 
+Website: [https://smartthc.net/](https://smartthc.net/)
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./SmartTHC_LOGO_PNG.png">
   <source media="(prefers-color-scheme: light)" srcset="./SmartTHC_LOGO_LIGHT_PNG.png">
@@ -12,7 +14,7 @@ Licensed under the [GNU General Public License v3 (GPL v3)](#license).
 
 ## Features
 
-- **PID-based height control** running at 1 kHz for responsive torch adjustment
+- **PID-based height control** running every `PID_INTERVAL_US` (1000 µs, 1 kHz) for responsive torch adjustment
 - **Explicit anti-dive Z lift** — when plasma voltage spikes (typically over a void or a previously cut piece), the firmware commands a fast, parameterizable Z retract (`ANTI_DIVE_LIFT_MM`, default 3 mm) on an aggressive speed/accel envelope (~120 ms for 3 mm) so the torch clears the work before re-entering metal. Prevents the classic "dive into the cut piece" crash.
 - **THC_OFF re-stabilization** (300 ms delay) — prevents torch dive on small oblong holes
 - **Motion-gated THC activation** — THC starts only after confirmed XY cut motion, with a configurable post-motion delay to avoid pierce-phase triggering
@@ -21,7 +23,7 @@ Licensed under the [GNU General Public License v3 (GPL v3)](#license).
 - **Watchdog Timer (WDT)** — auto-reboot on EMI-induced hangs in plasma environment (5.5 s timeout with a 3 s boot DFU window so flashing isn't blocked; robust against the common Uno R4 FSP-enum pitfall)
 - **8-screen LCD menu** with rotary encoder navigation (setpoint, PID tuning, speed, correction factor)
 - **Real-time monitoring** — arc voltage, torch speed, and system status on 16x2 LCD
-- **Dual voltage filtering** — fast EMA for PID input + slow 200-sample average for anti-dive reference
+- **Dual voltage filtering.** PID input, every `PID_INTERVAL_US` (1 kHz): a 15-sample rolling window (`FAST_AVERAGE_SIZE`) with the 2 lowest and 2 highest samples discarded (`FAST_AVERAGE_TRIM`); the other 11 are averaged, then smoothed by an EMA (`INPUT_ALPHA` = 0.95, `y = INPUT_ALPHA * x + (1 - INPUT_ALPHA) * y_prev`). Anti-dive reference: a 10-sample rolling average (`SLOW_AVERAGE_SIZE`) copied into a 200-sample buffer (`N_SLOW`) every `SLOW_SAMPLE_INTERVAL_MS` (10 ms, 100 Hz), then an EMA (`ALPHA_SLOW` = 0.8).
 - **Speed monitoring** via X/Y step pulse interrupts with threshold-based activation
 - **Persistent EEPROM storage** with deferred writes (1 s batching) to minimize flash wear
 - **Metric / Imperial support** (compile-time configurable)
@@ -100,6 +102,7 @@ Three additional motor-envelope flags (`STEPPER_MAX_SPEED`, `STEPPER_ACCELERATIO
 
 | Parameter | Default | Description |
 |---|---|---|
+| `PID_INTERVAL_US` | 1000 µs | PID loop period (1 kHz). The fast voltage filter runs on this tick. |
 | `STABILIZATION_DELAY` | 750 ms | Plasma stabilization before PID activates |
 | `THC_ON_RESTAB_DELAY` | 300 ms | Re-stabilization after THC_OFF → THC_ON |
 | `CUT_MOTION_CONFIRM_DELAY` | 200 ms | Continuous XY motion validation before cut is considered started |
@@ -107,7 +110,12 @@ Three additional motor-envelope flags (`STEPPER_MAX_SPEED`, `STEPPER_ACCELERATIO
 | `CUT_SPEED_HYSTERESIS_RATIO` | 0.1 | Speed threshold hysteresis ratio to avoid ON/OFF chatter |
 | `DEFAULT_SETPOINT` | 110 V | Target arc voltage |
 | `DEFAULT_KP / KI / KD` | 30 / 7.5 / 2.0 | PID coefficients (encoder-tunable up to `KP_MAX=1500`, `KI_MAX=50`, `KD_MAX=100`) |
-| `DROP_THRESHOLD` / `RETURN_THRESHOLD` | 5 V / 3 V | Anti-dive activation / deactivation thresholds |
+| `FAST_AVERAGE_SIZE` / `FAST_AVERAGE_TRIM` | 15 / 2 | PID-input window: discard the 2 lowest and 2 highest samples, average the remaining 11 |
+| `INPUT_ALPHA` | 0.95 | EMA weight on the new trimmed fast sample (`y = INPUT_ALPHA * x + (1 - INPUT_ALPHA) * y_prev`) |
+| `SLOW_AVERAGE_SIZE` / `SLOW_SAMPLE_INTERVAL_MS` | 10 / 10 ms | Rolling average ahead of the anti-dive reference, pushed into the slow buffer at 100 Hz |
+| `N_SLOW` / `ALPHA_SLOW` | 200 / 0.8 | Anti-dive reference length and slow EMA |
+| `ANTI_DIVE_THRESHOLD_MIN` / `ANTI_DIVE_THRESHOLD_RATIO` | 5 V / 5 % | Activation when fast voltage exceeds the slow reference by `max(5 V, 5 % of setpoint)`, held for `ANTI_DIVE_CONFIRM_MS` (100 ms) |
+| `RETURN_THRESHOLD` | 3 V | Anti-dive release when fast voltage is at or below the slow voltage captured at activation, plus 3 V |
 | `MAX_ANTI_DIVE_DURATION` | 1000 ms | Upper bound on anti-dive duration (force-deactivate even if voltage hasn't recovered) |
 | `ANTI_DIVE_LIFT_SPEED / _ACCEL` | 5000 / 20000 | Emergency lift motion envelope (faster than PID) |
 | `STEPPER_DEADZONE` | 1 V | PID dead zone |
@@ -165,9 +173,7 @@ Managed automatically by PlatformIO:
 
 ## Premium Documentation
 
-While the code is open source, a premium documentation package is available with step-by-step hardware setup guides, tuning tips, and CNC integration guides.
-
-[Purchase Premium Documentation](https://shop.aplasma.fr/b/zClKk)
+Hardware setup, tuning, and CNC integration are covered in the [premium documentation](https://shop.aplasma.fr/b/zClKk).
 
 ## License
 
